@@ -12,7 +12,9 @@ const JIRA_EMAIL = process.env.JIRA_EMAIL || ''
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN || ''
 
 const basicAuth =
-  JIRA_EMAIL && JIRA_API_TOKEN ? btoa(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`) : ''
+  JIRA_EMAIL && JIRA_API_TOKEN
+    ? Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64')
+    : ''
 
 async function getAuthAndBase() {
   // Prefer user OAuth tokens from cookies when available
@@ -87,12 +89,28 @@ async function jiraFetch(endpoint: string, options?: RequestInit) {
 // Separate function for Agile API calls (boards, sprints)
 async function jiraAgileFetch(endpoint: string, options?: RequestInit) {
   const { base, headers } = await getAuthAndBase()
-  const response = await fetch(`${base}/rest/agile/1.0${endpoint}`, {
+  let response = await fetch(`${base}/rest/agile/1.0${endpoint}`, {
     headers: {
       ...headers
     },
     ...options
   })
+
+  // If OAuth token is present but lacks Agile scope, fall back to Basic auth using env token
+  if (response.status === 401 && basicAuth) {
+    try {
+      response = await fetch(`${JIRA_BASE_URL}/rest/agile/1.0${endpoint}`, {
+        headers: {
+          Authorization: `Basic ${basicAuth}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        ...options
+      })
+    } catch (e) {
+      // network error; will be handled below as !ok
+    }
+  }
 
   if (!response.ok) {
     throw new Error(
