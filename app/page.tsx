@@ -1,386 +1,384 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { KanbanBoard } from "@/components/kanban-board";
-import { IssueEditModal } from "@/components/issue-edit-modal";
-import { SprintSelector } from "@/components/sprint-selector";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from 'react'
+import { KanbanBoard } from '@/components/kanban-board'
+import { IssueEditModal } from '@/components/issue-edit-modal'
+import { SprintSelector } from '@/components/sprint-selector'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { Button } from '@/components/ui/button'
 import {
   RefreshCw,
   Loader2,
   AlertCircle,
   Calendar,
-  Archive,
-} from "lucide-react";
+  Archive
+} from 'lucide-react'
 import {
   fetchIssues,
   fetchProjects,
   fetchCurrentUser,
-  fetchProjectSprints,
-} from "@/lib/client-api";
+  fetchProjectSprints
+} from '@/lib/client-api'
 import type {
   JiraIssue,
   JiraProject,
   JiraUser,
-  FilterOptions,
-} from "@/types/jira";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
+  FilterOptions
+} from '@/types/jira'
+import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface Sprint {
-  id: string;
-  name: string;
-  state: string;
+  id: string
+  name: string
+  state: string
 }
 
 const STORAGE_KEYS = {
-  SELECTED_PROJECT: "jira-clone-selected-project",
-  SELECTED_SPRINTS: "jira-clone-selected-sprints",
-  FILTERS: "jira-clone-filters",
-  FILTER_SIDEBAR_OPEN: "jira-clone-filter-sidebar-open",
-};
+  SELECTED_PROJECT: 'jira-clone-selected-project',
+  SELECTED_SPRINTS: 'jira-clone-selected-sprints',
+  FILTERS: 'jira-clone-filters',
+  FILTER_SIDEBAR_OPEN: 'jira-clone-filter-sidebar-open'
+}
 
 export default function HomePage() {
-  const [issues, setIssues] = useState<JiraIssue[]>([]);
-  const [projects, setProjects] = useState<JiraProject[]>([]);
-  const [sprints, setSprints] = useState<Sprint[]>([]);
-  const [currentUser, setCurrentUser] = useState<JiraUser | null>(null);
-  const [selectedProject, setSelectedProject] = useState<string>("");
-  const [selectedSprints, setSelectedSprints] = useState<string[]>([]);
-  const [filters, setFilters] = useState<FilterOptions>({});
-  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-  const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
+  const [issues, setIssues] = useState<JiraIssue[]>([])
+  const [projects, setProjects] = useState<JiraProject[]>([])
+  const [sprints, setSprints] = useState<Sprint[]>([])
+  const [currentUser, setCurrentUser] = useState<JiraUser | null>(null)
+  const [selectedProject, setSelectedProject] = useState<string>('')
+  const [selectedSprints, setSelectedSprints] = useState<string[]>([])
+  const [filters, setFilters] = useState<FilterOptions>({})
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
+  const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null)
 
   // Load all saved states from localStorage on mount
   useEffect(() => {
-    const savedProject = localStorage.getItem(STORAGE_KEYS.SELECTED_PROJECT);
-    const savedSprints = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS);
-    const savedFilters = localStorage.getItem(STORAGE_KEYS.FILTERS);
+    const savedProject = localStorage.getItem(STORAGE_KEYS.SELECTED_PROJECT)
+    const savedSprints = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS)
+    const savedFilters = localStorage.getItem(STORAGE_KEYS.FILTERS)
     const savedSidebarOpen = localStorage.getItem(
-      STORAGE_KEYS.FILTER_SIDEBAR_OPEN,
-    );
+      STORAGE_KEYS.FILTER_SIDEBAR_OPEN
+    )
 
     if (savedProject) {
-      setSelectedProject(savedProject);
+      setSelectedProject(savedProject)
     }
 
     if (savedSprints) {
       try {
-        setSelectedSprints(JSON.parse(savedSprints));
+        setSelectedSprints(JSON.parse(savedSprints))
       } catch (error) {
-        console.error("Error parsing saved sprints:", error);
+        console.error('Error parsing saved sprints:', error)
       }
     }
 
     if (savedFilters) {
       try {
-        setFilters(JSON.parse(savedFilters));
+        setFilters(JSON.parse(savedFilters))
       } catch (error) {
-        console.error("Error parsing saved filters:", error);
+        console.error('Error parsing saved filters:', error)
       }
     }
 
     if (savedSidebarOpen) {
       try {
-        setIsFilterSidebarOpen(JSON.parse(savedSidebarOpen));
+        setIsFilterSidebarOpen(JSON.parse(savedSidebarOpen))
       } catch (error) {
-        console.error("Error parsing saved sidebar state:", error);
+        console.error('Error parsing saved sidebar state:', error)
       }
     }
-  }, []);
+  }, [])
 
   // Save to localStorage when project changes
   useEffect(() => {
     if (selectedProject) {
-      localStorage.setItem(STORAGE_KEYS.SELECTED_PROJECT, selectedProject);
+      localStorage.setItem(STORAGE_KEYS.SELECTED_PROJECT, selectedProject)
     }
-  }, [selectedProject]);
+  }, [selectedProject])
 
   // Save to localStorage when sprints change
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEYS.SELECTED_SPRINTS,
-      JSON.stringify(selectedSprints),
-    );
-  }, [selectedSprints]);
+      JSON.stringify(selectedSprints)
+    )
+  }, [selectedSprints])
 
   // Add keyboard shortcut for opening current user's active issue
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
-        event.key.toLowerCase() === "c" &&
+        event.key.toLowerCase() === 'c' &&
         !event.ctrlKey &&
         !event.altKey &&
         !event.metaKey &&
         !event.shiftKey
       ) {
-        const activeElement = document.activeElement;
+        const activeElement = document.activeElement
         const isInputField =
           activeElement instanceof HTMLInputElement ||
           activeElement instanceof HTMLTextAreaElement ||
           activeElement instanceof HTMLSelectElement ||
-          activeElement?.getAttribute("contenteditable") === "true";
+          activeElement?.getAttribute('contenteditable') === 'true'
 
         if (!isInputField && currentUser) {
-          event.preventDefault();
+          event.preventDefault()
 
           const currentActiveIssue = issues.find(
             (issue) =>
               issue.assignee?.displayName === currentUser.displayName &&
-              issue.status.name.toLowerCase().includes("current active issue"),
-          );
+              issue.status.name.toLowerCase().includes('current active issue')
+          )
 
           if (currentActiveIssue) {
-            setSelectedIssue(currentActiveIssue);
+            setSelectedIssue(currentActiveIssue)
           }
         }
       }
-    };
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [issues, currentUser]);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [issues, currentUser])
 
   // Load projects and user on mount
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        setLoading(true);
-        setLoadingMessage("Loading projects...");
-        setError(null);
+        setLoading(true)
+        setLoadingMessage('Loading projects...')
+        setError(null)
 
-        const projectsData = await fetchProjects();
-        setProjects(projectsData);
+        const projectsData = await fetchProjects()
+        setProjects(projectsData)
 
-        setLoadingMessage("Loading user information...");
-        const user = await fetchCurrentUser();
-        setCurrentUser(user);
+        setLoadingMessage('Loading user information...')
+        const user = await fetchCurrentUser()
+        setCurrentUser(user)
 
         // If we have a saved project, load its sprints
-        const savedProject = localStorage.getItem(
-          STORAGE_KEYS.SELECTED_PROJECT,
-        );
-        const projectToLoad = savedProject || "MP5";
-        const project = projectsData.find((p) => p.key === projectToLoad);
+        const savedProject = localStorage.getItem(STORAGE_KEYS.SELECTED_PROJECT)
+        const projectToLoad = savedProject || 'MP5'
+        const project = projectsData.find((p) => p.key === projectToLoad)
 
         if (project) {
-          setSelectedProject(project.key);
-          await loadSprintsForProject(project.key);
+          setSelectedProject(project.key)
+          await loadSprintsForProject(project.key)
         }
       } catch (err) {
         setError(
-          "Failed to load data from Jira. Please check your configuration.",
-        );
-        console.error("Error initializing app:", err);
+          'Failed to load data from Jira. Please check your configuration.'
+        )
+        console.error('Error initializing app:', err)
       } finally {
-        setLoading(false);
-        setLoadingMessage("");
+        setLoading(false)
+        setLoadingMessage('')
       }
-    };
+    }
 
-    initializeApp();
-  }, []);
+    initializeApp()
+  }, [])
 
   // Load sprints when project changes
   useEffect(() => {
     if (selectedProject && projects.length > 0) {
-      loadSprintsForProject(selectedProject);
+      loadSprintsForProject(selectedProject)
     }
-  }, [selectedProject, projects]);
+  }, [selectedProject, projects])
 
   // Auto-load issues when sprints are restored from localStorage
   useEffect(() => {
-    const savedSprints = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS);
+    const savedSprints = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS)
     if (savedSprints && selectedProject && sprints.length > 0) {
       try {
-        const parsedSprints = JSON.parse(savedSprints);
+        const parsedSprints = JSON.parse(savedSprints)
         if (parsedSprints.length > 0) {
           // Auto-load issues for saved sprints
-          loadIssues(parsedSprints);
+          loadIssues(parsedSprints)
         }
       } catch (error) {
-        console.error("Error parsing saved sprints for auto-load:", error);
+        console.error('Error parsing saved sprints for auto-load:', error)
       }
     }
-  }, [selectedProject, sprints]);
+  }, [selectedProject, sprints])
 
   const loadSprintsForProject = async (projectKey: string) => {
     try {
-      setLoadingMessage("Loading sprints...");
-      console.log(`Loading sprints for project: ${projectKey}`);
+      setLoadingMessage('Loading sprints...')
+      console.log(`Loading sprints for project: ${projectKey}`)
 
-      const sprintsData = await fetchProjectSprints(projectKey);
+      const sprintsData = await fetchProjectSprints(projectKey)
       console.log(
         `Loaded ${sprintsData.length} sprints for project ${projectKey}:`,
-        sprintsData,
-      );
+        sprintsData
+      )
 
-      setSprints(sprintsData);
+      setSprints(sprintsData)
 
       // Clear selected sprints if they don't exist in the new project
       const validSprints = selectedSprints.filter((sprintName) =>
-        sprintsData.some((sprint) => sprint.name === sprintName),
-      );
+        sprintsData.some((sprint) => sprint.name === sprintName)
+      )
       if (validSprints.length !== selectedSprints.length) {
         console.log(
-          `Cleared invalid sprints. Valid: ${validSprints.length}, Previous: ${selectedSprints.length}`,
-        );
-        setSelectedSprints(validSprints);
+          `Cleared invalid sprints. Valid: ${validSprints.length}, Previous: ${selectedSprints.length}`
+        )
+        setSelectedSprints(validSprints)
       }
     } catch (err) {
-      console.error("Error loading sprints:", err);
+      console.error('Error loading sprints:', err)
       setError(
-        `Failed to load sprints for project ${projectKey}. Check console for details.`,
-      );
+        `Failed to load sprints for project ${projectKey}. Check console for details.`
+      )
     }
-  };
+  }
 
   const loadIssues = async (sprintsToLoad?: string[]) => {
-    const sprintsForQuery = sprintsToLoad || selectedSprints;
+    const sprintsForQuery = sprintsToLoad || selectedSprints
 
     if (!selectedProject || sprintsForQuery.length === 0) {
-      setIssues([]);
-      return;
+      setIssues([])
+      return
     }
 
     try {
-      setLoading(true);
+      setLoading(true)
       setLoadingMessage(
-        `Loading issues for ${sprintsForQuery.length} sprint(s)...`,
-      );
-      setError(null);
+        `Loading issues for ${sprintsForQuery.length} sprint(s)...`
+      )
+      setError(null)
 
       // Combine sprint filter with other filters
       const combinedFilters: FilterOptions = {
         ...filters,
-        sprint: sprintsForQuery,
-      };
+        sprint: sprintsForQuery
+      }
 
-      const issuesData = await fetchIssues(selectedProject, combinedFilters);
-      setIssues(issuesData);
+      const issuesData = await fetchIssues(selectedProject, combinedFilters)
+      setIssues(issuesData)
     } catch (err) {
-      setError("Failed to load issues from Jira.");
-      setIssues([]);
-      console.error("Error loading issues:", err);
+      setError('Failed to load issues from Jira.')
+      setIssues([])
+      console.error('Error loading issues:', err)
     } finally {
-      setLoading(false);
-      setLoadingMessage("");
+      setLoading(false)
+      setLoadingMessage('')
     }
-  };
+  }
 
   const handleProjectChange = (projectKey: string) => {
-    setSelectedProject(projectKey);
-    setSelectedSprints([]);
-    setIssues([]);
+    setSelectedProject(projectKey)
+    setSelectedSprints([])
+    setIssues([])
     // Clear filters when changing projects
-    setFilters({});
-    localStorage.removeItem(STORAGE_KEYS.FILTERS);
-  };
+    setFilters({})
+    localStorage.removeItem(STORAGE_KEYS.FILTERS)
+  }
 
   const handleSprintChange = (sprints: string[]) => {
-    setSelectedSprints(sprints);
+    setSelectedSprints(sprints)
     // Don't auto-load issues, wait for user to click Load
-  };
+  }
 
   const handleFiltersChange = (newFilters: FilterOptions) => {
-    setFilters(newFilters);
+    setFilters(newFilters)
     // Filters are automatically saved to localStorage in FilterSidebar component
-  };
+  }
 
   const handleLoadIssues = () => {
-    loadIssues();
-  };
+    loadIssues()
+  }
 
   const handleIssueClick = (issue: JiraIssue) => {
-    setSelectedIssue(issue);
-  };
+    setSelectedIssue(issue)
+  }
 
   const handleIssueUpdate = async () => {
     if (selectedProject && selectedSprints.length > 0) {
       // Combine sprint filter with other filters
       const combinedFilters: FilterOptions = {
         ...filters,
-        sprint: selectedSprints,
-      };
+        sprint: selectedSprints
+      }
 
-      const issuesData = await fetchIssues(selectedProject, combinedFilters);
-      setIssues(issuesData);
+      const issuesData = await fetchIssues(selectedProject, combinedFilters)
+      setIssues(issuesData)
     }
-  };
+  }
 
   const currentActiveIssue = currentUser
     ? issues.find(
         (issue) =>
           issue.assignee?.displayName === currentUser.displayName &&
-          issue.status.name.toLowerCase().includes("current active issue"),
+          issue.status.name.toLowerCase().includes('current active issue')
       )
-    : null;
+    : null
 
-  const canLoadIssues = selectedProject && selectedSprints.length > 0;
+  const canLoadIssues = selectedProject && selectedSprints.length > 0
 
   // Calculate sprint statistics
   const sprintStats = sprints.reduce(
     (acc, sprint) => {
-      const state = sprint.state.toLowerCase();
-      acc[state] = (acc[state] || 0) + 1;
-      return acc;
+      const state = sprint.state.toLowerCase()
+      acc[state] = (acc[state] || 0) + 1
+      return acc
     },
-    {} as Record<string, number>,
-  );
+    {} as Record<string, number>
+  )
 
   const activeFutureSprints =
-    (sprintStats.active || 0) + (sprintStats.future || 0);
-  const closedSprints = sprintStats.closed || 0;
+    (sprintStats.active || 0) + (sprintStats.future || 0)
+  const closedSprints = sprintStats.closed || 0
 
   // Count active filters
   const activeFiltersCount = Object.entries(filters).reduce(
     (count, [key, value]) => {
-      if (key === "sprint") return count; // Don't count sprint filter as it's handled separately
+      if (key === 'sprint') return count // Don't count sprint filter as it's handled separately
       if (Array.isArray(value)) {
-        return count + value.length;
+        return count + value.length
       }
       if (value) {
-        return count + 1;
+        return count + 1
       }
-      return count;
+      return count
     },
-    0,
-  );
+    0
+  )
 
   return (
-    <div className="bg-background h-screen w-full">
-      <div className="bg-background border-border space-y-4 border-b p-4">
+    <div className='bg-background h-screen w-full'>
+      <div className='bg-background border-border space-y-4 border-b p-4'>
         {/* Header Row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-foreground text-2xl font-bold">
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-4'>
+            <h1 className='text-foreground text-2xl font-bold'>
               Project Board
             </h1>
             {selectedProject && (
-              <Badge variant="outline" className="text-sm font-medium">
+              <Badge variant='outline' className='text-sm font-medium'>
                 {selectedProject}
               </Badge>
             )}
             {sprints.length > 0 && (
-              <div className="flex items-center gap-2 text-sm">
+              <div className='flex items-center gap-2 text-sm'>
                 <Badge
-                  variant="secondary"
-                  className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  variant='secondary'
+                  className='bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                 >
                   {activeFutureSprints} active/future
                 </Badge>
                 {closedSprints > 0 && (
                   <Badge
-                    variant="secondary"
-                    className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                    variant='secondary'
+                    className='bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
                   >
-                    <Archive className="mr-1 h-3 w-3" />
+                    <Archive className='mr-1 h-3 w-3' />
                     {closedSprints} closed
                   </Badge>
                 )}
@@ -388,24 +386,24 @@ export default function HomePage() {
             )}
             {activeFiltersCount > 0 && (
               <Badge
-                variant="outline"
-                className="border-blue-200 bg-blue-50 text-blue-700"
+                variant='outline'
+                className='border-blue-200 bg-blue-50 text-blue-700'
               >
-                {activeFiltersCount} filter{activeFiltersCount !== 1 ? "s" : ""}{" "}
+                {activeFiltersCount} filter{activeFiltersCount !== 1 ? 's' : ''}{' '}
                 active
               </Badge>
             )}
             {currentUser && (
-              <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+              <div className='flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400'>
                 <span>Welcome, {currentUser.displayName}</span>
                 {currentActiveIssue && (
                   <Badge
-                    variant="outline"
-                    className="cursor-pointer"
+                    variant='outline'
+                    className='cursor-pointer'
                     onClick={() => setSelectedIssue(currentActiveIssue)}
                   >
                     Active: {currentActiveIssue.key}
-                    <kbd className="ml-1 rounded border bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900">
+                    <kbd className='ml-1 rounded border bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
                       C
                     </kbd>
                   </Badge>
@@ -413,33 +411,33 @@ export default function HomePage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className='flex items-center gap-4'>
             <ThemeToggle />
-            <Badge variant="outline">{issues.length} issues loaded</Badge>
+            <Badge variant='outline'>{issues.length} issues loaded</Badge>
           </div>
         </div>
 
         {/* Controls Row */}
-        <Card className="bg-muted/30">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-6">
+        <Card className='bg-muted/30'>
+          <CardContent className='p-4'>
+            <div className='flex flex-wrap items-center gap-6'>
               {/* Project Selection */}
               {projects.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className='flex items-center gap-2'>
                   <Label
-                    htmlFor="project-select"
-                    className="text-sm font-medium whitespace-nowrap"
+                    htmlFor='project-select'
+                    className='text-sm font-medium whitespace-nowrap'
                   >
                     1. Project:
                   </Label>
                   <select
-                    id="project-select"
-                    className="border-input bg-background text-foreground focus:ring-ring min-w-[200px] rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden"
+                    id='project-select'
+                    className='border-input bg-background text-foreground focus:ring-ring min-w-[200px] rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
                     value={selectedProject}
                     onChange={(e) => handleProjectChange(e.target.value)}
                     disabled={loading}
                   >
-                    <option value="">Select a project</option>
+                    <option value=''>Select a project</option>
                     {projects.map((project) => (
                       <option key={project.key} value={project.key}>
                         {project.name} ({project.key})
@@ -451,8 +449,8 @@ export default function HomePage() {
 
               {/* Sprint Selection */}
               {selectedProject && (
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Label className="text-sm font-medium whitespace-nowrap">
+                <div className='flex min-w-0 flex-1 items-center gap-2'>
+                  <Label className='text-sm font-medium whitespace-nowrap'>
                     2. Sprint(s):
                   </Label>
                   <SprintSelector
@@ -468,18 +466,18 @@ export default function HomePage() {
               {selectedProject && (
                 <Button
                   onClick={handleLoadIssues}
-                  size="default"
+                  size='default'
                   disabled={loading || !canLoadIssues}
-                  className="whitespace-nowrap"
+                  className='whitespace-nowrap'
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                       Loading...
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
+                      <RefreshCw className='mr-2 h-4 w-4' />
                       3. Load Issues
                     </>
                   )}
@@ -491,8 +489,8 @@ export default function HomePage() {
 
         {/* Loading progress */}
         {loading && loadingMessage && (
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div className='text-muted-foreground flex items-center gap-2 text-sm'>
+            <Loader2 className='h-4 w-4 animate-spin' />
             {loadingMessage}
           </div>
         )}
@@ -503,12 +501,12 @@ export default function HomePage() {
           !loading &&
           sprints.length > 0 && (
             <Alert>
-              <Calendar className="h-4 w-4" />
+              <Calendar className='h-4 w-4' />
               <AlertDescription>
                 <strong>Step 2:</strong> Please select at least one sprint from
                 the dropdown above to load issues.
                 {activeFutureSprints > 0 && (
-                  <span className="mt-1 block text-sm">
+                  <span className='mt-1 block text-sm'>
                     💡 <strong>Tip:</strong> By default, only active and future
                     sprints are shown. Use the "Show closed" checkbox to see
                     historical sprints.
@@ -521,7 +519,7 @@ export default function HomePage() {
         {/* No sprints found */}
         {selectedProject && sprints.length === 0 && !loading && (
           <Alert>
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className='h-4 w-4' />
             <AlertDescription>
               No sprints found for project <strong>{selectedProject}</strong>.
               This project might not have any sprints configured or you might
@@ -531,8 +529,8 @@ export default function HomePage() {
         )}
 
         {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
+          <Alert variant='destructive'>
+            <AlertCircle className='h-4 w-4' />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -557,5 +555,5 @@ export default function HomePage() {
         }
       />
     </div>
-  );
+  )
 }
