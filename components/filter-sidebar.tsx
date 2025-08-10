@@ -1,33 +1,43 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { CalendarDays, Filter, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Badge } from "@/components/ui/badge"
-import { normalizeStatusName } from "@/lib/utils"
-import type { FilterOptions, JiraIssue } from "@/types/jira"
+import { useState, useEffect } from "react";
+import { CalendarDays, Filter, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+import { normalizeStatusName } from "@/lib/utils";
+import type { FilterOptions, JiraIssue } from "@/types/jira";
 
 interface FilterSidebarProps {
-  filters: FilterOptions
-  onFiltersChange: (filters: FilterOptions) => void
-  issues: JiraIssue[]
-  isOpen: boolean
-  onToggle: () => void
+  filters: FilterOptions;
+  onFiltersChange: (filters: FilterOptions) => void;
+  issues: JiraIssue[];
+  isOpen: boolean;
+  onToggle: () => void;
 }
 
 const STORAGE_KEYS = {
   FILTERS: "jira-clone-filters",
   FILTER_SECTIONS: "jira-clone-filter-sections",
   FILTER_SIDEBAR_OPEN: "jira-clone-filter-sidebar-open",
-}
+};
 
-export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onToggle }: FilterSidebarProps) {
+export function FilterSidebar({
+  filters,
+  onFiltersChange,
+  issues,
+  isOpen,
+  onToggle,
+}: FilterSidebarProps) {
   const [openSections, setOpenSections] = useState({
     status: true,
     priority: true,
@@ -38,100 +48,132 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
     dueDate: false,
     labels: false,
     components: false,
-  })
+  });
 
   // Load filter section states from localStorage on mount
   useEffect(() => {
-    const savedSections = localStorage.getItem(STORAGE_KEYS.FILTER_SECTIONS)
+    const savedSections = localStorage.getItem(STORAGE_KEYS.FILTER_SECTIONS);
     if (savedSections) {
       try {
-        setOpenSections(JSON.parse(savedSections))
+        setOpenSections(JSON.parse(savedSections));
       } catch (error) {
-        console.error("Error parsing saved filter sections:", error)
+        console.error("Error parsing saved filter sections:", error);
       }
     }
-  }, [])
+  }, []);
 
   // Save filter section states to localStorage when they change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FILTER_SECTIONS, JSON.stringify(openSections))
-  }, [openSections])
+    localStorage.setItem(
+      STORAGE_KEYS.FILTER_SECTIONS,
+      JSON.stringify(openSections),
+    );
+  }, [openSections]);
 
   // Save sidebar open state to localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FILTER_SIDEBAR_OPEN, JSON.stringify(isOpen))
-  }, [isOpen])
+    localStorage.setItem(
+      STORAGE_KEYS.FILTER_SIDEBAR_OPEN,
+      JSON.stringify(isOpen),
+    );
+  }, [isOpen]);
 
   // Save filters to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FILTERS, JSON.stringify(filters))
-  }, [filters])
+    localStorage.setItem(STORAGE_KEYS.FILTERS, JSON.stringify(filters));
+  }, [filters]);
 
   // Add keyboard shortcut for toggling filter sidebar
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Check if 'F' key is pressed (without any modifiers like Ctrl, Alt, etc.)
-      if (event.key.toLowerCase() === "f" && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
+      if (
+        event.key.toLowerCase() === "f" &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.shiftKey
+      ) {
         // Only trigger if not typing in an input field
-        const activeElement = document.activeElement
+        const activeElement = document.activeElement;
         const isInputField =
           activeElement instanceof HTMLInputElement ||
           activeElement instanceof HTMLTextAreaElement ||
           activeElement instanceof HTMLSelectElement ||
-          activeElement?.getAttribute("contenteditable") === "true"
+          activeElement?.getAttribute("contenteditable") === "true";
 
         if (!isInputField) {
-          event.preventDefault()
-          onToggle()
+          event.preventDefault();
+          onToggle();
         }
       }
-    }
+    };
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [onToggle])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onToggle]);
 
   const toggleSection = (section: keyof typeof openSections) => {
-    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }))
-  }
+    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
 
   // Extract unique values from issues with normalized status names
-  const uniqueStatuses = [...new Set(issues.map((issue) => normalizeStatusName(issue.status.name)))]
-  const uniquePriorities = [...new Set(issues.map((issue) => issue.priority.name))]
-  const uniqueAssignees = [...new Set(issues.map((issue) => issue.assignee?.displayName).filter(Boolean))]
-  const uniqueIssueTypes = [...new Set(issues.map((issue) => issue.issuetype.name))]
-  const uniqueSprints = [...new Set(issues.map((issue) => issue.sprint?.name).filter(Boolean))]
-  const uniqueLabels = [...new Set(issues.flatMap((issue) => issue.labels))]
-  const uniqueComponents = [...new Set(issues.flatMap((issue) => issue.components.map((c) => c.name)))]
+  const uniqueStatuses = [
+    ...new Set(issues.map((issue) => normalizeStatusName(issue.status.name))),
+  ];
+  const uniquePriorities = [
+    ...new Set(issues.map((issue) => issue.priority.name)),
+  ];
+  const uniqueAssignees = [
+    ...new Set(
+      issues.map((issue) => issue.assignee?.displayName).filter(Boolean),
+    ),
+  ];
+  const uniqueIssueTypes = [
+    ...new Set(issues.map((issue) => issue.issuetype.name)),
+  ];
+  const uniqueSprints = [
+    ...new Set(issues.map((issue) => issue.sprint?.name).filter(Boolean)),
+  ];
+  const uniqueLabels = [...new Set(issues.flatMap((issue) => issue.labels))];
+  const uniqueComponents = [
+    ...new Set(issues.flatMap((issue) => issue.components.map((c) => c.name))),
+  ];
 
   const handleFilterChange = (key: keyof FilterOptions, value: any) => {
-    onFiltersChange({ ...filters, [key]: value })
-  }
+    onFiltersChange({ ...filters, [key]: value });
+  };
 
-  const handleMultiSelectChange = (key: keyof FilterOptions, value: string, checked: boolean) => {
-    const currentValues = (filters[key] as string[]) || []
-    const newValues = checked ? [...currentValues, value] : currentValues.filter((v) => v !== value)
+  const handleMultiSelectChange = (
+    key: keyof FilterOptions,
+    value: string,
+    checked: boolean,
+  ) => {
+    const currentValues = (filters[key] as string[]) || [];
+    const newValues = checked
+      ? [...currentValues, value]
+      : currentValues.filter((v) => v !== value);
 
-    handleFilterChange(key, newValues.length > 0 ? newValues : undefined)
-  }
+    handleFilterChange(key, newValues.length > 0 ? newValues : undefined);
+  };
 
   const clearAllFilters = () => {
-    onFiltersChange({})
+    onFiltersChange({});
     // Also clear from localStorage
-    localStorage.removeItem(STORAGE_KEYS.FILTERS)
-  }
+    localStorage.removeItem(STORAGE_KEYS.FILTERS);
+  };
 
   const getActiveFiltersCount = () => {
-    return Object.entries(filters).reduce((count, [key, value]) => {
+    return Object.entries(filters).reduce((count, [, value]) => {
       if (Array.isArray(value)) {
-        return count + value.length
+        return count + value.length;
       }
       if (value) {
-        return count + 1
+        return count + 1;
       }
-      return count
-    }, 0)
-  }
+      return count;
+    }, 0);
+  };
 
   if (!isOpen) {
     return (
@@ -139,24 +181,31 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
         variant="outline"
         size="sm"
         onClick={onToggle}
-        className="fixed top-20 left-4 z-50 shadow-lg bg-background border"
+        className="bg-background fixed top-20 left-4 z-50 border shadow-lg"
       >
-        <Filter className="h-4 w-4 mr-2" />
+        <Filter className="mr-2 h-4 w-4" />
         Filters {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
-        <kbd className="ml-2 px-1.5 py-0.5 text-xs bg-gray-100 border rounded">F</kbd>
+        <kbd className="ml-2 rounded border bg-gray-100 px-1.5 py-0.5 text-xs">
+          F
+        </kbd>
       </Button>
-    )
+    );
   }
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-40 lg:hidden" onClick={onToggle} />
-      <Card className="fixed left-0 top-0 h-full w-80 z-50 lg:relative lg:z-0 overflow-y-auto bg-background border-r">
+      <div
+        className="fixed inset-0 z-40 bg-black/50 lg:hidden dark:bg-black/70"
+        onClick={onToggle}
+      />
+      <Card className="bg-background fixed top-0 left-0 z-50 h-full w-80 overflow-y-auto border-r lg:relative lg:z-0">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
             Filters
-            <kbd className="px-1.5 py-0.5 text-xs bg-gray-100 border rounded font-mono">F</kbd>
+            <kbd className="rounded border bg-gray-100 px-1.5 py-0.5 font-mono text-xs">
+              F
+            </kbd>
           </CardTitle>
           <div className="flex items-center gap-2">
             {getActiveFiltersCount() > 0 && (
@@ -174,20 +223,31 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Status Filter */}
-          <Collapsible open={openSections.status} onOpenChange={() => toggleSection("status")}>
+          <Collapsible
+            open={openSections.status}
+            onOpenChange={() => toggleSection("status")}
+          >
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-2">
                 Status
-                {filters.status?.length && <Badge variant="secondary">{filters.status.length}</Badge>}
+                {filters.status?.length && (
+                  <Badge variant="secondary">{filters.status.length}</Badge>
+                )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 mt-2">
+            <CollapsibleContent className="mt-2 space-y-2">
               {uniqueStatuses.map((status) => (
                 <div key={status} className="flex items-center space-x-2">
                   <Checkbox
                     id={`status-${status}`}
                     checked={filters.status?.includes(status) || false}
-                    onCheckedChange={(checked) => handleMultiSelectChange("status", status, checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      handleMultiSelectChange(
+                        "status",
+                        status,
+                        checked as boolean,
+                      )
+                    }
                   />
                   <Label htmlFor={`status-${status}`} className="text-sm">
                     {status}
@@ -200,20 +260,31 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
           <Separator />
 
           {/* Priority Filter */}
-          <Collapsible open={openSections.priority} onOpenChange={() => toggleSection("priority")}>
+          <Collapsible
+            open={openSections.priority}
+            onOpenChange={() => toggleSection("priority")}
+          >
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-2">
                 Priority
-                {filters.priority?.length && <Badge variant="secondary">{filters.priority.length}</Badge>}
+                {filters.priority?.length && (
+                  <Badge variant="secondary">{filters.priority.length}</Badge>
+                )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 mt-2">
+            <CollapsibleContent className="mt-2 space-y-2">
               {uniquePriorities.map((priority) => (
                 <div key={priority} className="flex items-center space-x-2">
                   <Checkbox
                     id={`priority-${priority}`}
                     checked={filters.priority?.includes(priority) || false}
-                    onCheckedChange={(checked) => handleMultiSelectChange("priority", priority, checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      handleMultiSelectChange(
+                        "priority",
+                        priority,
+                        checked as boolean,
+                      )
+                    }
                   />
                   <Label htmlFor={`priority-${priority}`} className="text-sm">
                     {priority}
@@ -226,22 +297,36 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
           <Separator />
 
           {/* Assignee Filter */}
-          <Collapsible open={openSections.assignee} onOpenChange={() => toggleSection("assignee")}>
+          <Collapsible
+            open={openSections.assignee}
+            onOpenChange={() => toggleSection("assignee")}
+          >
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-2">
                 Assignee
-                {filters.assignee?.length && <Badge variant="secondary">{filters.assignee.length}</Badge>}
+                {filters.assignee?.length && (
+                  <Badge variant="secondary">{filters.assignee.length}</Badge>
+                )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 mt-2">
+            <CollapsibleContent className="mt-2 space-y-2">
               {/* Add Unassigned option first */}
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="assignee-unassigned"
                   checked={filters.assignee?.includes("Unassigned") || false}
-                  onCheckedChange={(checked) => handleMultiSelectChange("assignee", "Unassigned", checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    handleMultiSelectChange(
+                      "assignee",
+                      "Unassigned",
+                      checked as boolean,
+                    )
+                  }
                 />
-                <Label htmlFor="assignee-unassigned" className="text-sm font-medium text-gray-600">
+                <Label
+                  htmlFor="assignee-unassigned"
+                  className="text-sm font-medium text-gray-600"
+                >
                   Unassigned
                 </Label>
               </div>
@@ -249,9 +334,15 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
                 <div key={assignee} className="flex items-center space-x-2">
                   <Checkbox
                     id={`assignee-${assignee}`}
-                    checked={filters.assignee?.includes(assignee as string) || false}
+                    checked={
+                      filters.assignee?.includes(assignee as string) || false
+                    }
                     onCheckedChange={(checked) =>
-                      handleMultiSelectChange("assignee", assignee as string, checked as boolean)
+                      handleMultiSelectChange(
+                        "assignee",
+                        assignee as string,
+                        checked as boolean,
+                      )
                     }
                   />
                   <Label htmlFor={`assignee-${assignee}`} className="text-sm">
@@ -265,20 +356,31 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
           <Separator />
 
           {/* Issue Type Filter */}
-          <Collapsible open={openSections.issueType} onOpenChange={() => toggleSection("issueType")}>
+          <Collapsible
+            open={openSections.issueType}
+            onOpenChange={() => toggleSection("issueType")}
+          >
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-2">
                 Issue Type
-                {filters.issueType?.length && <Badge variant="secondary">{filters.issueType.length}</Badge>}
+                {filters.issueType?.length && (
+                  <Badge variant="secondary">{filters.issueType.length}</Badge>
+                )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 mt-2">
+            <CollapsibleContent className="mt-2 space-y-2">
               {uniqueIssueTypes.map((type) => (
                 <div key={type} className="flex items-center space-x-2">
                   <Checkbox
                     id={`type-${type}`}
                     checked={filters.issueType?.includes(type) || false}
-                    onCheckedChange={(checked) => handleMultiSelectChange("issueType", type, checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      handleMultiSelectChange(
+                        "issueType",
+                        type,
+                        checked as boolean,
+                      )
+                    }
                   />
                   <Label htmlFor={`type-${type}`} className="text-sm">
                     {type}
@@ -293,21 +395,35 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
           {/* Sprint Filter */}
           {uniqueSprints.length > 0 && (
             <>
-              <Collapsible open={openSections.sprint} onOpenChange={() => toggleSection("sprint")}>
+              <Collapsible
+                open={openSections.sprint}
+                onOpenChange={() => toggleSection("sprint")}
+              >
                 <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between p-2"
+                  >
                     Sprint
-                    {filters.sprint?.length && <Badge variant="secondary">{filters.sprint.length}</Badge>}
+                    {filters.sprint?.length && (
+                      <Badge variant="secondary">{filters.sprint.length}</Badge>
+                    )}
                   </Button>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-2 mt-2">
+                <CollapsibleContent className="mt-2 space-y-2">
                   {uniqueSprints.map((sprint) => (
                     <div key={sprint} className="flex items-center space-x-2">
                       <Checkbox
                         id={`sprint-${sprint}`}
-                        checked={filters.sprint?.includes(sprint as string) || false}
+                        checked={
+                          filters.sprint?.includes(sprint as string) || false
+                        }
                         onCheckedChange={(checked) =>
-                          handleMultiSelectChange("sprint", sprint as string, checked as boolean)
+                          handleMultiSelectChange(
+                            "sprint",
+                            sprint as string,
+                            checked as boolean,
+                          )
                         }
                       />
                       <Label htmlFor={`sprint-${sprint}`} className="text-sm">
@@ -323,42 +439,79 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
 
           {/* Release Filter */}
           {(() => {
-            const uniqueReleases = [...new Set(issues.flatMap((issue) => issue.fixVersions?.map((v) => v.name) || []))]
+            const uniqueReleases = [
+              ...new Set(
+                issues.flatMap(
+                  (issue) => issue.fixVersions?.map((v) => v.name) || [],
+                ),
+              ),
+            ];
             return (
               <>
                 {uniqueReleases.length > 0 && (
                   <>
-                    <Collapsible open={openSections.release} onOpenChange={() => toggleSection("release")}>
+                    <Collapsible
+                      open={openSections.release}
+                      onOpenChange={() => toggleSection("release")}
+                    >
                       <CollapsibleTrigger asChild>
-                        <Button variant="ghost" className="w-full justify-between p-2">
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-between p-2"
+                        >
                           Release
-                          {filters.release?.length && <Badge variant="secondary">{filters.release.length}</Badge>}
+                          {filters.release?.length && (
+                            <Badge variant="secondary">
+                              {filters.release.length}
+                            </Badge>
+                          )}
                         </Button>
                       </CollapsibleTrigger>
-                      <CollapsibleContent className="space-y-2 mt-2">
+                      <CollapsibleContent className="mt-2 space-y-2">
                         {/* Add No Release option first */}
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="release-none"
-                            checked={filters.release?.includes("No Release") || false}
+                            checked={
+                              filters.release?.includes("No Release") || false
+                            }
                             onCheckedChange={(checked) =>
-                              handleMultiSelectChange("release", "No Release", checked as boolean)
+                              handleMultiSelectChange(
+                                "release",
+                                "No Release",
+                                checked as boolean,
+                              )
                             }
                           />
-                          <Label htmlFor="release-none" className="text-sm font-medium text-gray-600">
+                          <Label
+                            htmlFor="release-none"
+                            className="text-sm font-medium text-gray-600"
+                          >
                             No Release
                           </Label>
                         </div>
                         {uniqueReleases.map((release) => (
-                          <div key={release} className="flex items-center space-x-2">
+                          <div
+                            key={release}
+                            className="flex items-center space-x-2"
+                          >
                             <Checkbox
                               id={`release-${release}`}
-                              checked={filters.release?.includes(release) || false}
+                              checked={
+                                filters.release?.includes(release) || false
+                              }
                               onCheckedChange={(checked) =>
-                                handleMultiSelectChange("release", release, checked as boolean)
+                                handleMultiSelectChange(
+                                  "release",
+                                  release,
+                                  checked as boolean,
+                                )
                               }
                             />
-                            <Label htmlFor={`release-${release}`} className="text-sm">
+                            <Label
+                              htmlFor={`release-${release}`}
+                              className="text-sm"
+                            >
                               {release}
                             </Label>
                           </div>
@@ -369,21 +522,26 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
                   </>
                 )}
               </>
-            )
+            );
           })()}
 
           {/* Due Date Filter */}
-          <Collapsible open={openSections.dueDate} onOpenChange={() => toggleSection("dueDate")}>
+          <Collapsible
+            open={openSections.dueDate}
+            onOpenChange={() => toggleSection("dueDate")}
+          >
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-2">
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4" />
                   Due Date
                 </div>
-                {(filters.dueDateFrom || filters.dueDateTo) && <Badge variant="secondary">Active</Badge>}
+                {(filters.dueDateFrom || filters.dueDateTo) && (
+                  <Badge variant="secondary">Active</Badge>
+                )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 mt-2">
+            <CollapsibleContent className="mt-2 space-y-2">
               <div>
                 <Label htmlFor="due-date-from" className="text-sm">
                   From
@@ -392,7 +550,12 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
                   id="due-date-from"
                   type="date"
                   value={filters.dueDateFrom || ""}
-                  onChange={(e) => handleFilterChange("dueDateFrom", e.target.value || undefined)}
+                  onChange={(e) =>
+                    handleFilterChange(
+                      "dueDateFrom",
+                      e.target.value || undefined,
+                    )
+                  }
                   className="mt-1"
                 />
               </div>
@@ -404,7 +567,9 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
                   id="due-date-to"
                   type="date"
                   value={filters.dueDateTo || ""}
-                  onChange={(e) => handleFilterChange("dueDateTo", e.target.value || undefined)}
+                  onChange={(e) =>
+                    handleFilterChange("dueDateTo", e.target.value || undefined)
+                  }
                   className="mt-1"
                 />
               </div>
@@ -416,20 +581,34 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
           {/* Labels Filter */}
           {uniqueLabels.length > 0 && (
             <>
-              <Collapsible open={openSections.labels} onOpenChange={() => toggleSection("labels")}>
+              <Collapsible
+                open={openSections.labels}
+                onOpenChange={() => toggleSection("labels")}
+              >
                 <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between p-2"
+                  >
                     Labels
-                    {filters.labels?.length && <Badge variant="secondary">{filters.labels.length}</Badge>}
+                    {filters.labels?.length && (
+                      <Badge variant="secondary">{filters.labels.length}</Badge>
+                    )}
                   </Button>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-2 mt-2">
+                <CollapsibleContent className="mt-2 space-y-2">
                   {uniqueLabels.map((label) => (
                     <div key={label} className="flex items-center space-x-2">
                       <Checkbox
                         id={`label-${label}`}
                         checked={filters.labels?.includes(label) || false}
-                        onCheckedChange={(checked) => handleMultiSelectChange("labels", label, checked as boolean)}
+                        onCheckedChange={(checked) =>
+                          handleMultiSelectChange(
+                            "labels",
+                            label,
+                            checked as boolean,
+                          )
+                        }
                       />
                       <Label htmlFor={`label-${label}`} className="text-sm">
                         {label}
@@ -444,24 +623,38 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
 
           {/* Components Filter */}
           {uniqueComponents.length > 0 && (
-            <Collapsible open={openSections.components} onOpenChange={() => toggleSection("components")}>
+            <Collapsible
+              open={openSections.components}
+              onOpenChange={() => toggleSection("components")}
+            >
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-2">
                   Components
-                  {filters.components?.length && <Badge variant="secondary">{filters.components.length}</Badge>}
+                  {filters.components?.length && (
+                    <Badge variant="secondary">
+                      {filters.components.length}
+                    </Badge>
+                  )}
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 mt-2">
+              <CollapsibleContent className="mt-2 space-y-2">
                 {uniqueComponents.map((component) => (
                   <div key={component} className="flex items-center space-x-2">
                     <Checkbox
                       id={`component-${component}`}
                       checked={filters.components?.includes(component) || false}
                       onCheckedChange={(checked) =>
-                        handleMultiSelectChange("components", component, checked as boolean)
+                        handleMultiSelectChange(
+                          "components",
+                          component,
+                          checked as boolean,
+                        )
                       }
                     />
-                    <Label htmlFor={`component-${component}`} className="text-sm">
+                    <Label
+                      htmlFor={`component-${component}`}
+                      className="text-sm"
+                    >
                       {component}
                     </Label>
                   </div>
@@ -472,5 +665,5 @@ export function FilterSidebar({ filters, onFiltersChange, issues, isOpen, onTogg
         </CardContent>
       </Card>
     </>
-  )
+  );
 }
