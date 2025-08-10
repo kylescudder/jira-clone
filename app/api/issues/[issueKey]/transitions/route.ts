@@ -3,10 +3,11 @@ import { getIssueTransitions } from '@/lib/jira-api'
 
 export async function GET(
   request: Request,
-  { params }: { params: { issueKey: string } }
+  ctx: { params: Promise<{ issueKey: string }> }
 ) {
   try {
-    const transitions = await getIssueTransitions(params.issueKey)
+    const { issueKey } = await ctx.params
+    const transitions = await getIssueTransitions(issueKey)
     return NextResponse.json(transitions)
   } catch (error) {
     console.error('API Error fetching transitions:', error)

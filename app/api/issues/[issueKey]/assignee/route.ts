@@ -3,17 +3,18 @@ import { updateIssueAssignee } from '@/lib/jira-api'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { issueKey: string } }
+  ctx: { params: Promise<{ issueKey: string }> }
 ) {
   try {
     const body = await request.json()
     const { accountId } = body
+    const { issueKey } = await ctx.params
 
     console.log(
-      `Updating issue ${params.issueKey} assignee to ${accountId || 'unassigned'}`
+      `Updating issue ${issueKey} assignee to ${accountId || 'unassigned'}`
     )
 
-    const success = await updateIssueAssignee(params.issueKey, accountId)
+    const success = await updateIssueAssignee(issueKey, accountId)
 
     if (success) {
       return NextResponse.json({ success: true })

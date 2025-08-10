@@ -3,7 +3,7 @@ import { updateIssueStatus } from '@/lib/jira-api'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { issueKey: string } }
+  ctx: { params: Promise<{ issueKey: string }> }
 ) {
   try {
     const body = await request.json()
@@ -16,11 +16,11 @@ export async function PUT(
       )
     }
 
-    console.log(
-      `Updating issue ${params.issueKey} to transition ${transitionId}`
-    )
+    const { issueKey } = await ctx.params
 
-    const success = await updateIssueStatus(params.issueKey, transitionId)
+    console.log(`Updating issue ${issueKey} to transition ${transitionId}`)
+
+    const success = await updateIssueStatus(issueKey, transitionId)
 
     if (success) {
       return NextResponse.json({ success: true })

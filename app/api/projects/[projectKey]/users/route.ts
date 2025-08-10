@@ -3,10 +3,11 @@ import { getProjectUsers } from '@/lib/jira-api'
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectKey: string } }
+  ctx: { params: Promise<{ projectKey: string }> }
 ) {
   try {
-    const users = await getProjectUsers(params.projectKey)
+    const { projectKey } = await ctx.params
+    const users = await getProjectUsers(projectKey)
     return NextResponse.json(users)
   } catch (error) {
     console.error('API Error fetching project users:', error)

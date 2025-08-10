@@ -3,10 +3,11 @@ import { getProjectSprints } from '@/lib/jira-api'
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectKey: string } }
+  ctx: { params: Promise<{ projectKey: string }> }
 ) {
   try {
-    const sprints = await getProjectSprints(params.projectKey)
+    const { projectKey } = await ctx.params
+    const sprints = await getProjectSprints(projectKey)
     return NextResponse.json(sprints)
   } catch (error) {
     console.error('API Error fetching project sprints:', error)

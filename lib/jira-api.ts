@@ -4,20 +4,53 @@ import type {
   JiraUser,
   FilterOptions
 } from '@/types/jira'
+import { cookies } from 'next/headers'
 
 const JIRA_BASE_URL =
   process.env.JIRA_BASE_URL || 'https://your-domain.atlassian.net'
 const JIRA_EMAIL = process.env.JIRA_EMAIL || ''
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN || ''
 
-const auth = btoa(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`)
+const basicAuth =
+  JIRA_EMAIL && JIRA_API_TOKEN ? btoa(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`) : ''
 
-async function jiraFetch(endpoint: string, options?: RequestInit) {
-  const response = await fetch(`${JIRA_BASE_URL}/rest/api/3${endpoint}`, {
+async function getAuthAndBase() {
+  // Prefer user OAuth tokens from cookies when available
+  try {
+    const cookieStore = await cookies()
+    const accessToken = cookieStore.get('JIRA_ACCESS_TOKEN')?.value
+    const cloudId = cookieStore.get('JIRA_CLOUD_ID')?.value
+
+    if (accessToken && cloudId) {
+      return {
+        base: `https://api.atlassian.com/ex/jira/${cloudId}`,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        }
+      }
+    }
+  } catch (e) {
+    // cookies() is only available in server runtime; ignore if not available
+  }
+
+  // Fallback to Basic auth using env (useful for local dev or service mode)
+  return {
+    base: JIRA_BASE_URL,
     headers: {
-      Authorization: `Basic ${auth}`,
+      ...(basicAuth ? { Authorization: `Basic ${basicAuth}` } : {}),
       Accept: 'application/json',
       'Content-Type': 'application/json'
+    }
+  }
+}
+
+async function jiraFetch(endpoint: string, options?: RequestInit) {
+  const { base, headers } = await getAuthAndBase()
+  const response = await fetch(`${base}/rest/api/3${endpoint}`, {
+    headers: {
+      ...headers
     },
     ...options
   })
@@ -53,11 +86,10 @@ async function jiraFetch(endpoint: string, options?: RequestInit) {
 
 // Separate function for Agile API calls (boards, sprints)
 async function jiraAgileFetch(endpoint: string, options?: RequestInit) {
-  const response = await fetch(`${JIRA_BASE_URL}/rest/agile/1.0${endpoint}`, {
+  const { base, headers } = await getAuthAndBase()
+  const response = await fetch(`${base}/rest/agile/1.0${endpoint}`, {
     headers: {
-      Authorization: `Basic ${auth}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json'
+      ...headers
     },
     ...options
   })

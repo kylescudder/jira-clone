@@ -312,6 +312,16 @@ export default function HomePage() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/jira/logout', { method: 'POST' })
+    } catch (e) {
+      // ignore
+    } finally {
+      window.location.href = '/login'
+    }
+  }
+
   const currentActiveIssue = currentUser
     ? issues.find(
         (issue) =>
@@ -414,6 +424,14 @@ export default function HomePage() {
           <div className='flex items-center gap-4'>
             <ThemeToggle />
             <Badge variant='outline'>{issues.length} issues loaded</Badge>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleLogout}
+              className='whitespace-nowrap cursor-pointer'
+            >
+              Logout
+            </Button>
           </div>
         </div>
 

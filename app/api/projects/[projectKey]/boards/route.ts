@@ -70,15 +70,16 @@ async function fetchAllPaginated(
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectKey: string } }
+  ctx: { params: Promise<{ projectKey: string }> }
 ) {
   try {
-    console.log(`Fetching ALL boards for project: ${params.projectKey}`)
+    const { projectKey } = await ctx.params
+    console.log(`Fetching ALL boards for project: ${projectKey}`)
 
     // Get ALL boards for the project with pagination
     const allBoards = await fetchAllPaginated(async (startAt, maxResults) => {
       return await jiraAgileFetch(
-        `/board?projectKeyOrId=${params.projectKey}&startAt=${startAt}&maxResults=${maxResults}`
+        `/board?projectKeyOrId=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
       )
     }, 50)
 
