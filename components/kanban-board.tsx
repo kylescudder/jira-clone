@@ -212,12 +212,12 @@ export function KanbanBoard({
             {columns.map((column) => (
               <Card
                 key={column.id}
-                className={`flex flex-col h-full flex-shrink-0 w-[270px] ${getColumnColor(column.title)}`}
+                className={`flex flex-col h-full shrink-0 w-[270px] ${getColumnColor(column.title)}`}
               >
-                <CardHeader className="pb-3 flex-shrink-0">
+                <CardHeader className="pb-3 shrink-0">
                   <CardTitle className="flex items-center justify-between">
                     <span className="text-lg truncate">{column.title}</span>
-                    <Badge variant="secondary" className="ml-2 flex-shrink-0">
+                    <Badge variant="secondary" className="ml-2 shrink-0">
                       {column.issues.length}
                     </Badge>
                   </CardTitle>

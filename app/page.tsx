@@ -376,7 +376,7 @@ export default function HomePage() {
                   </Label>
                   <select
                     id="project-select"
-                    className="px-3 py-2 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[200px]"
+                    className="px-3 py-2 border border-input bg-background text-foreground rounded text-sm focus:outline-hidden focus:ring-2 focus:ring-ring min-w-[200px]"
                     value={selectedProject}
                     onChange={(e) => handleProjectChange(e.target.value)}
                     disabled={loading}
