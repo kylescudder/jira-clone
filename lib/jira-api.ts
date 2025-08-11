@@ -603,7 +603,10 @@ export async function getIssues(
       const releaseConditions: string[] = []
 
       filters.release.forEach((release) => {
-        if (release === 'NO_RELEASE') {
+        if (
+          release === 'NO_RELEASE' ||
+          release.toLowerCase() === 'no release'
+        ) {
           releaseConditions.push('fixVersion is EMPTY')
         } else {
           releaseConditions.push(`fixVersion = "${release}"`)
@@ -692,7 +695,12 @@ export async function getIssues(
             state: issue.fields.customfield_10020[0]?.state
           }
         : undefined,
-      fixVersions: issue.fields.fixVersions || []
+      fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
+        id: String(v.id),
+        name: v.name,
+        released: Boolean(v.released),
+        archived: Boolean(v.archived)
+      }))
     }))
   } catch (error) {
     console.error('Error fetching issues:', error)

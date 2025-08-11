@@ -46,6 +46,7 @@ export interface JiraIssue {
     id: string
     name: string
     released: boolean
+    archived?: boolean
   }>
 }
 

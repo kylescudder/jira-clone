@@ -17,7 +17,8 @@ import {
   fetchIssues,
   fetchProjects,
   fetchCurrentUser,
-  fetchProjectSprints
+  fetchProjectSprints,
+  getCachedData
 } from '@/lib/client-api'
 import type {
   JiraIssue,
@@ -50,14 +51,29 @@ export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<JiraUser | null>(null)
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [selectedSprints, setSelectedSprints] = useState<string[]>([])
-  const [filters, setFilters] = useState<FilterOptions>({})
+  const [filters, setFilters] = useState<FilterOptions>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedFilters = localStorage.getItem(STORAGE_KEYS.FILTERS)
+        if (savedFilters) {
+          const parsed = JSON.parse(savedFilters)
+          // Ensure it's an object
+          if (parsed && typeof parsed === 'object')
+            return parsed as FilterOptions
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+    return {}
+  })
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null)
 
-  // Load all saved states from localStorage on mount
+  // Load all saved states and cached data from localStorage on mount
   useEffect(() => {
     const savedProject = localStorage.getItem(STORAGE_KEYS.SELECTED_PROJECT)
     const savedSprints = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS)
@@ -91,6 +107,37 @@ export default function HomePage() {
         setIsFilterSidebarOpen(JSON.parse(savedSidebarOpen))
       } catch (error) {
         console.error('Error parsing saved sidebar state:', error)
+      }
+    }
+
+    // Hydrate from cache immediately
+    const cachedProjects = getCachedData<JiraProject[]>('projects') || []
+    if (cachedProjects.length) setProjects(cachedProjects)
+
+    const cachedUser = getCachedData<JiraUser>('currentUser')
+    if (cachedUser) setCurrentUser(cachedUser)
+
+    if (savedProject) {
+      const cachedSprints =
+        getCachedData<Sprint[]>(`sprints:${savedProject}`) || []
+      if (cachedSprints.length) setSprints(cachedSprints)
+
+      // If we have saved sprints, hydrate base (unfiltered) issues cache too
+      try {
+        const parsedSprints: string[] = savedSprints
+          ? JSON.parse(savedSprints)
+          : []
+        if (parsedSprints.length) {
+          const base: FilterOptions = { sprint: parsedSprints }
+          const params = new URLSearchParams({ project: savedProject })
+          if (base.sprint?.length)
+            params.append('sprint', [...base.sprint].sort().join(','))
+          const cacheKey = `issues:${savedProject}:${params.toString()}`
+          const cachedIssues = getCachedData<JiraIssue[]>(cacheKey) || []
+          if (cachedIssues.length) setIssues(cachedIssues)
+        }
+      } catch (e) {
+        // ignore
       }
     }
   }, [])
@@ -210,6 +257,10 @@ export default function HomePage() {
 
   const loadSprintsForProject = async (projectKey: string) => {
     try {
+      // Hydrate from cache immediately
+      const cached = getCachedData<Sprint[]>(`sprints:${projectKey}`) || []
+      if (cached.length) setSprints(cached)
+
       setLoadingMessage('Loading sprints...')
       console.log(`Loading sprints for project: ${projectKey}`)
 
@@ -260,11 +311,25 @@ export default function HomePage() {
         sprint: sprintsForQuery
       }
 
-      const issuesData = await fetchIssues(selectedProject, combinedFilters)
-      setIssues(issuesData)
+      // Hydrate from cache immediately while fetching
+      try {
+        const params = new URLSearchParams({ project: selectedProject })
+        // Use sprint-only key for base issues
+        if (sprintsForQuery.length)
+          params.append('sprint', [...sprintsForQuery].sort().join(','))
+        const cacheKey = `issues:${selectedProject}:${params.toString()}`
+        const cachedIssues = getCachedData<JiraIssue[]>(cacheKey)
+        if (cachedIssues && cachedIssues.length) setIssues(cachedIssues)
+      } catch {}
+
+      // Fetch base (unfiltered) issues for the selected sprint(s)
+      const baseIssues = await fetchIssues(selectedProject, {
+        sprint: sprintsForQuery
+      })
+      setIssues(baseIssues)
     } catch (err) {
       setError('Failed to load issues from Jira.')
-      setIssues([])
+      // Do not clear here, we may already be showing cached data
       console.error('Error loading issues:', err)
     } finally {
       setLoading(false)
@@ -301,14 +366,11 @@ export default function HomePage() {
 
   const handleIssueUpdate = async () => {
     if (selectedProject && selectedSprints.length > 0) {
-      // Combine sprint filter with other filters
-      const combinedFilters: FilterOptions = {
-        ...filters,
+      // Refresh base (unfiltered) issues for options and board filtering
+      const baseIssues = await fetchIssues(selectedProject, {
         sprint: selectedSprints
-      }
-
-      const issuesData = await fetchIssues(selectedProject, combinedFilters)
-      setIssues(issuesData)
+      })
+      setIssues(baseIssues)
     }
   }
 

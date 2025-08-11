@@ -439,16 +439,48 @@ export function FilterSidebar({
 
           {/* Release Filter */}
           {(() => {
-            const uniqueReleases = [
-              ...new Set(
-                issues.flatMap(
-                  (issue) => issue.fixVersions?.map((v) => v.name) || []
-                )
-              )
-            ]
+            // Collect all versions from issues, including their released/archived flags
+            const allVersions = issues.flatMap(
+              (issue) => issue.fixVersions || []
+            )
+
+            // De-duplicate by id when present, otherwise by name
+            const versionMap = new Map<
+              string,
+              { name: string; released: boolean; archived?: boolean }
+            >()
+            for (const v of allVersions) {
+              const key = (v.id && String(v.id)) || v.name
+              if (!versionMap.has(key)) {
+                versionMap.set(key, {
+                  name: v.name,
+                  released: !!v.released,
+                  archived: v.archived
+                })
+              } else {
+                // Merge in case different issues have different flags (prefer archived true, then released true)
+                const prev = versionMap.get(key)!
+                versionMap.set(key, {
+                  name: prev.name,
+                  released: prev.released || !!v.released,
+                  archived: prev.archived || v.archived
+                })
+              }
+            }
+            const versions = Array.from(versionMap.values())
+
+            // Group like Jira
+            const archived = versions.filter((v) => v.archived)
+            const released = versions.filter((v) => v.released && !v.archived)
+            const unreleased = versions.filter(
+              (v) => !v.released && !v.archived
+            )
+
+            const total = versions.length
+
             return (
               <>
-                {uniqueReleases.length > 0 && (
+                {total > 0 && (
                   <>
                     <Collapsible
                       open={openSections.release}
@@ -467,8 +499,8 @@ export function FilterSidebar({
                           )}
                         </Button>
                       </CollapsibleTrigger>
-                      <CollapsibleContent className='mt-2 space-y-2'>
-                        {/* Add No Release option first */}
+                      <CollapsibleContent className='mt-2 space-y-3'>
+                        {/* No Release option */}
                         <div className='flex items-center space-x-2'>
                           <Checkbox
                             id='release-none'
@@ -490,32 +522,162 @@ export function FilterSidebar({
                             No Release
                           </Label>
                         </div>
-                        {uniqueReleases.map((release) => (
-                          <div
-                            key={release}
-                            className='flex items-center space-x-2'
-                          >
-                            <Checkbox
-                              id={`release-${release}`}
-                              checked={
-                                filters.release?.includes(release) || false
-                              }
-                              onCheckedChange={(checked) =>
-                                handleMultiSelectChange(
-                                  'release',
-                                  release,
-                                  checked as boolean
-                                )
-                              }
-                            />
-                            <Label
-                              htmlFor={`release-${release}`}
-                              className='text-sm'
+
+                        {/* Unreleased subsection (default open) */}
+                        <Collapsible defaultOpen>
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='w-full justify-between px-1 py-2'
                             >
-                              {release}
-                            </Label>
-                          </div>
-                        ))}
+                              <span>Unreleased</span>
+                              <Badge variant='secondary'>
+                                {unreleased.length}
+                              </Badge>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className='mt-2 space-y-2'>
+                            {unreleased.length === 0 ? (
+                              <div className='text-muted-foreground text-xs'>
+                                No unreleased versions
+                              </div>
+                            ) : (
+                              unreleased
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map((v) => (
+                                  <div
+                                    key={`release-unreleased-${v.name}`}
+                                    className='flex items-center space-x-2'
+                                  >
+                                    <Checkbox
+                                      id={`release-${v.name}`}
+                                      checked={
+                                        filters.release?.includes(v.name) ||
+                                        false
+                                      }
+                                      onCheckedChange={(checked) =>
+                                        handleMultiSelectChange(
+                                          'release',
+                                          v.name,
+                                          checked as boolean
+                                        )
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor={`release-${v.name}`}
+                                      className='text-sm'
+                                    >
+                                      {v.name}
+                                    </Label>
+                                  </div>
+                                ))
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
+
+                        {/* Released subsection */}
+                        <Collapsible defaultOpen={false}>
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='w-full justify-between px-1 py-2'
+                            >
+                              <span>Released</span>
+                              <Badge variant='secondary'>
+                                {released.length}
+                              </Badge>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className='mt-2 space-y-2'>
+                            {released.length === 0 ? (
+                              <div className='text-muted-foreground text-xs'>
+                                No released versions
+                              </div>
+                            ) : (
+                              released
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map((v) => (
+                                  <div
+                                    key={`release-released-${v.name}`}
+                                    className='flex items-center space-x-2'
+                                  >
+                                    <Checkbox
+                                      id={`release-${v.name}`}
+                                      checked={
+                                        filters.release?.includes(v.name) ||
+                                        false
+                                      }
+                                      onCheckedChange={(checked) =>
+                                        handleMultiSelectChange(
+                                          'release',
+                                          v.name,
+                                          checked as boolean
+                                        )
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor={`release-${v.name}`}
+                                      className='text-sm'
+                                    >
+                                      {v.name}
+                                    </Label>
+                                  </div>
+                                ))
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
+
+                        {/* Archived subsection */}
+                        <Collapsible defaultOpen={false}>
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='w-full justify-between px-1 py-2'
+                            >
+                              <span>Archived</span>
+                              <Badge variant='secondary'>
+                                {archived.length}
+                              </Badge>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className='mt-2 space-y-2'>
+                            {archived.length === 0 ? (
+                              <div className='text-muted-foreground text-xs'>
+                                No archived versions
+                              </div>
+                            ) : (
+                              archived
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map((v) => (
+                                  <div
+                                    key={`release-archived-${v.name}`}
+                                    className='flex items-center space-x-2'
+                                  >
+                                    <Checkbox
+                                      id={`release-${v.name}`}
+                                      checked={
+                                        filters.release?.includes(v.name) ||
+                                        false
+                                      }
+                                      onCheckedChange={(checked) =>
+                                        handleMultiSelectChange(
+                                          'release',
+                                          v.name,
+                                          checked as boolean
+                                        )
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor={`release-${v.name}`}
+                                      className='text-sm'
+                                    >
+                                      {v.name}
+                                    </Label>
+                                  </div>
+                                ))
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
                       </CollapsibleContent>
                     </Collapsible>
                     <Separator />

@@ -44,6 +44,7 @@ import {
   updateIssueAssignee,
   fetchIssueDetails
 } from '@/lib/client-api'
+import { getCachedData } from '@/lib/client-api'
 import { normalizeStatusName, getStatusColor } from '@/lib/utils'
 import type { JiraIssue, JiraUser, JiraIssueDetails } from '@/types/jira'
 
@@ -127,6 +128,12 @@ export function IssueEditModal({
     if (!issue) return
     setDetailsLoading(true)
     try {
+      // hydrate from cache immediately
+      const cached = getCachedData<JiraIssueDetails>(
+        `issueDetails:${issue.key}`
+      )
+      if (cached) setDetails(cached)
+
       const d = await fetchIssueDetails(issue.key)
       setDetails(d)
     } catch (e) {
@@ -145,6 +152,22 @@ export function IssueEditModal({
 
     try {
       console.log(`Loading edit data for issue ${issue.key}`)
+
+      // hydrate from cache immediately
+      const cachedTransitions = getCachedData<
+        Array<{ id: string; name: string }>
+      >(`transitions:${issue.key}`)
+      if (cachedTransitions?.length) {
+        const normalizedCached = cachedTransitions.map((t) => ({
+          ...t,
+          name: normalizeStatusName(t.name)
+        }))
+        setTransitions(normalizedCached)
+      }
+      const cachedUsers = getCachedData<JiraUser[]>(
+        `projectUsers:${projectKey}`
+      )
+      if (cachedUsers?.length) setProjectUsers(cachedUsers)
 
       const [transitionsData, usersData] = await Promise.all([
         fetchIssueTransitions(issue.key),
