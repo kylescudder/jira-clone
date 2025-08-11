@@ -38,24 +38,45 @@ export function FilterSidebar({
   isOpen,
   onToggle
 }: FilterSidebarProps) {
-  const [openSections, setOpenSections] = useState({
-    status: true,
-    priority: true,
-    assignee: true,
-    issueType: true,
-    sprint: false,
-    release: false,
-    dueDate: false,
-    labels: false,
-    components: false
+  const [openSections, setOpenSections] = useState(() => {
+    const defaults = {
+      status: true,
+      priority: true,
+      assignee: true,
+      issueType: true,
+      sprint: false,
+      release: false,
+      dueDate: false,
+      labels: false,
+      components: false,
+      // Release subsections
+      releaseUnreleased: true,
+      releaseReleased: false,
+      releaseArchived: false
+    }
+    try {
+      const saved =
+        typeof window !== 'undefined'
+          ? localStorage.getItem(STORAGE_KEYS.FILTER_SECTIONS)
+          : null
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Merge to ensure any new keys receive defaults
+        return { ...defaults, ...parsed }
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+    return defaults
   })
 
-  // Load filter section states from localStorage on mount
+  // Load filter section states from localStorage on mount (merge to keep new defaults)
   useEffect(() => {
     const savedSections = localStorage.getItem(STORAGE_KEYS.FILTER_SECTIONS)
     if (savedSections) {
       try {
-        setOpenSections(JSON.parse(savedSections))
+        const parsed = JSON.parse(savedSections)
+        setOpenSections((prev) => ({ ...prev, ...parsed }))
       } catch (error) {
         console.error('Error parsing saved filter sections:', error)
       }
@@ -524,7 +545,12 @@ export function FilterSidebar({
                         </div>
 
                         {/* Unreleased subsection (default open) */}
-                        <Collapsible defaultOpen>
+                        <Collapsible
+                          open={openSections.releaseUnreleased}
+                          onOpenChange={() =>
+                            toggleSection('releaseUnreleased')
+                          }
+                        >
                           <CollapsibleTrigger asChild>
                             <Button
                               variant='ghost'
@@ -576,7 +602,10 @@ export function FilterSidebar({
                         </Collapsible>
 
                         {/* Released subsection */}
-                        <Collapsible defaultOpen={false}>
+                        <Collapsible
+                          open={openSections.releaseReleased}
+                          onOpenChange={() => toggleSection('releaseReleased')}
+                        >
                           <CollapsibleTrigger asChild>
                             <Button
                               variant='ghost'
@@ -628,7 +657,10 @@ export function FilterSidebar({
                         </Collapsible>
 
                         {/* Archived subsection */}
-                        <Collapsible defaultOpen={false}>
+                        <Collapsible
+                          open={openSections.releaseArchived}
+                          onOpenChange={() => toggleSection('releaseArchived')}
+                        >
                           <CollapsibleTrigger asChild>
                             <Button
                               variant='ghost'

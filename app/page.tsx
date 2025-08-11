@@ -50,7 +50,20 @@ export default function HomePage() {
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [currentUser, setCurrentUser] = useState<JiraUser | null>(null)
   const [selectedProject, setSelectedProject] = useState<string>('')
-  const [selectedSprints, setSelectedSprints] = useState<string[]>([])
+  const [selectedSprints, setSelectedSprints] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed)) return parsed as string[]
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+    return []
+  })
   const [filters, setFilters] = useState<FilterOptions>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -67,7 +80,19 @@ export default function HomePage() {
     }
     return {}
   })
-  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false)
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState<boolean>(
+    () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.FILTER_SIDEBAR_OPEN)
+          if (saved != null) return JSON.parse(saved)
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
+      return false
+    }
+  )
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -304,12 +329,6 @@ export default function HomePage() {
         `Loading issues for ${sprintsForQuery.length} sprint(s)...`
       )
       setError(null)
-
-      // Combine sprint filter with other filters
-      const combinedFilters: FilterOptions = {
-        ...filters,
-        sprint: sprintsForQuery
-      }
 
       // Hydrate from cache immediately while fetching
       try {
