@@ -230,7 +230,7 @@ export function KanbanBoard({
   }
 
   return (
-    <div className='bg-background flex h-screen'>
+    <div className='bg-background flex h-full'>
       <FilterSidebar
         filters={filters}
         onFiltersChange={onFiltersChange}

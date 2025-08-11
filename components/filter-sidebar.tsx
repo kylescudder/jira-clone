@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { normalizeStatusName } from '@/lib/utils'
 import type { FilterOptions, JiraIssue } from '@/types/jira'
+import { KeyboardKey } from '@/components/ui/keyboard-key'
 
 interface FilterSidebarProps {
   filters: FilterOptions
@@ -205,10 +206,13 @@ export function FilterSidebar({
         className='bg-background fixed bottom-4 left-4 z-50 border shadow-lg'
       >
         <Filter className='mr-2 h-4 w-4' />
-        Filters {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
-        <kbd className='ml-2 rounded border bg-gray-100 px-1.5 py-0.5 text-xs'>
+        Filters{' '}
+        {getActiveFiltersCount() > 0 && (
+          <Badge variant='secondary'>{getActiveFiltersCount()}</Badge>
+        )}
+        <KeyboardKey size='xs' className='ml-2'>
           F
-        </kbd>
+        </KeyboardKey>
       </Button>
     )
   }
@@ -219,16 +223,11 @@ export function FilterSidebar({
         className='fixed inset-0 z-40 bg-black/50 lg:hidden dark:bg-black/70'
         onClick={onToggle}
       />
-      <Card className='bg-background fixed top-0 left-0 z-50 h-full w-80 overflow-y-auto border-r lg:relative lg:z-0'>
+      <Card className='bg-background fixed top-0 left-0 z-50 h-full w-80 overflow-y-auto overflow-x-hidden border-r lg:relative lg:z-0'>
         <CardHeader className='flex flex-row items-center justify-between'>
           <CardTitle className='flex items-center gap-2'>
             <Filter className='h-5 w-5' />
             Filters
-            <kbd className='rounded border bg-gray-100 px-1.5 py-0.5 font-mono text-xs'>
-              F
-            </kbd>
-          </CardTitle>
-          <div className='flex items-center gap-2'>
             {getActiveFiltersCount() > 0 && (
               <>
                 <Badge variant='secondary'>{getActiveFiltersCount()}</Badge>
@@ -237,12 +236,15 @@ export function FilterSidebar({
                 </Button>
               </>
             )}
+            <KeyboardKey size='sm'>F</KeyboardKey>
+          </CardTitle>
+          <div className='flex items-center gap-2'>
             <Button variant='ghost' size='sm' onClick={onToggle}>
               <X className='h-4 w-4' />
             </Button>
           </div>
         </CardHeader>
-        <CardContent className='space-y-4'>
+        <CardContent className='space-y-4 overflow-x-hidden'>
           {/* Status Filter */}
           <Collapsible
             open={openSections.status}

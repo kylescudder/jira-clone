@@ -50,12 +50,28 @@ async function getAuthAndBase() {
 
 async function jiraFetch(endpoint: string, options?: RequestInit) {
   const { base, headers } = await getAuthAndBase()
-  const response = await fetch(`${base}/rest/api/3${endpoint}`, {
+  let response = await fetch(`${base}/rest/api/3${endpoint}`, {
     headers: {
       ...headers
     },
     ...options
   })
+
+  // If OAuth token is present but lacks required scope, fall back to Basic auth using env token
+  if (response.status === 401 && basicAuth) {
+    try {
+      response = await fetch(`${JIRA_BASE_URL}/rest/api/3${endpoint}`, {
+        headers: {
+          Authorization: `Basic ${basicAuth}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        ...options
+      })
+    } catch (e) {
+      // network error; will be handled below as !ok
+    }
+  }
 
   if (!response.ok) {
     throw new Error(`Jira API error: ${response.status} ${response.statusText}`)

@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
+import { KeyboardKey } from '@/components/ui/keyboard-key'
 
 interface Sprint {
   id: string
@@ -443,8 +444,8 @@ export default function HomePage() {
   )
 
   return (
-    <div className='bg-background h-screen w-full'>
-      <div className='bg-background border-border space-y-4 border-b p-4'>
+    <div className='bg-background h-screen w-full flex flex-col overflow-hidden'>
+      <div className='bg-background border-border space-y-4 border-b p-4 sticky top-0 z-20 shrink-0'>
         {/* Header Row */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-4'>
@@ -494,9 +495,9 @@ export default function HomePage() {
                     onClick={() => setSelectedIssue(currentActiveIssue)}
                   >
                     Active: {currentActiveIssue.key}
-                    <kbd className='ml-1 rounded border bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                    <KeyboardKey size='xs' className='ml-1'>
                       C
-                    </kbd>
+                    </KeyboardKey>
                   </Badge>
                 )}
               </div>
@@ -643,16 +644,20 @@ export default function HomePage() {
         onUpdate={handleIssueUpdate}
       />
 
-      <KanbanBoard
-        issues={issues}
-        onIssueClick={handleIssueClick}
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        isFilterSidebarOpen={isFilterSidebarOpen}
-        onToggleFilterSidebar={() =>
-          setIsFilterSidebarOpen(!isFilterSidebarOpen)
-        }
-      />
+      <div className='flex-1 min-h-0 overflow-hidden'>
+        <div className='h-full overflow-auto'>
+          <KanbanBoard
+            issues={issues}
+            onIssueClick={handleIssueClick}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            isFilterSidebarOpen={isFilterSidebarOpen}
+            onToggleFilterSidebar={() =>
+              setIsFilterSidebarOpen(!isFilterSidebarOpen)
+            }
+          />
+        </div>
+      </div>
     </div>
   )
 }
