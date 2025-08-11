@@ -568,32 +568,24 @@ export default function HomePage() {
                   onClick={handleLoadIssues}
                   size='default'
                   disabled={loading || !canLoadIssues}
-                  className='whitespace-nowrap'
+                  className='whitespace-nowrap w-[150px] justify-center'
                 >
                   {loading ? (
-                    <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    <span className='inline-flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
                       Loading...
-                    </>
+                    </span>
                   ) : (
-                    <>
-                      <RefreshCw className='mr-2 h-4 w-4' />
+                    <span className='inline-flex items-center gap-2'>
+                      <RefreshCw className='h-4 w-4' />
                       3. Load Issues
-                    </>
+                    </span>
                   )}
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
-
-        {/* Loading progress */}
-        {loading && loadingMessage && (
-          <div className='text-muted-foreground flex items-center gap-2 text-sm'>
-            <Loader2 className='h-4 w-4 animate-spin' />
-            {loadingMessage}
-          </div>
-        )}
 
         {/* Sprint selection requirement */}
         {selectedProject &&
