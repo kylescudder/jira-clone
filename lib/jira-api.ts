@@ -482,6 +482,63 @@ export async function updateIssueAssignee(
   }
 }
 
+export async function getIssueDetails(issueKey: string) {
+  try {
+    // Attachments (fetch via fields)
+    const issueData = await jiraFetch(`/issue/${issueKey}?fields=attachment`)
+    const attachments = (issueData?.fields?.attachment || []).map(
+      (att: any) => {
+        const mime: string | undefined = att.mimeType
+        const filename: string = att.filename
+        const isImage =
+          mime?.startsWith('image/') ||
+          /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(filename)
+        return {
+          id: String(att.id),
+          filename: filename,
+          size: Number(att.size) || 0,
+          mimeType: mime,
+          isImage
+        }
+      }
+    )
+
+    // Comments (paginate up to 100 for now)
+    const commentsData = await jiraFetch(
+      `/issue/${issueKey}/comment?orderBy=created&maxResults=100`
+    )
+    const comments = (commentsData?.comments || []).map((c: any) => ({
+      id: String(c.id),
+      author: {
+        displayName: c.author?.displayName,
+        avatarUrls: c.author?.avatarUrls
+      },
+      created: c.created,
+      body: typeof c.body === 'string' ? c.body : extractTextFromADF(c.body)
+    }))
+
+    // Changelog (paginate up to 100)
+    const changelogData = await jiraFetch(
+      `/issue/${issueKey}/changelog?maxResults=100`
+    )
+    const changelog = (changelogData?.values || []).map((h: any) => ({
+      id: String(h.id),
+      author: { displayName: h.author?.displayName },
+      created: h.created,
+      items: (h.items || []).map((it: any) => ({
+        field: it.field,
+        fromString: it.fromString,
+        toString: it.toString
+      }))
+    }))
+
+    return { attachments, comments, changelog }
+  } catch (error) {
+    console.error('Error fetching issue details:', error)
+    return { attachments: [], comments: [], changelog: [] }
+  }
+}
+
 export async function getIssues(
   projectKey: string,
   filters?: FilterOptions

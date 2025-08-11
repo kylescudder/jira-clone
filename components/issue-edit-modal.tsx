@@ -29,16 +29,23 @@ import {
   User,
   Clock,
   Tag,
-  Component
+  Component,
+  ChevronDown
 } from 'lucide-react'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@/components/ui/collapsible'
 import {
   fetchIssueTransitions,
   fetchProjectUsers,
   updateIssueStatus,
-  updateIssueAssignee
+  updateIssueAssignee,
+  fetchIssueDetails
 } from '@/lib/client-api'
 import { normalizeStatusName, getStatusColor } from '@/lib/utils'
-import type { JiraIssue, JiraUser } from '@/types/jira'
+import type { JiraIssue, JiraUser, JiraIssueDetails } from '@/types/jira'
 
 interface IssueEditModalProps {
   issue: JiraIssue | null
@@ -66,10 +73,20 @@ export function IssueEditModal({
   const [selectedTransition, setSelectedTransition] = useState<string>('')
   const [selectedAssignee, setSelectedAssignee] = useState<string>('')
   const [hasChanges, setHasChanges] = useState(false)
+  const [details, setDetails] = useState<JiraIssueDetails | null>(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [commentsOpen, setCommentsOpen] = useState(true)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [preview, setPreview] = useState<{
+    url: string
+    filename: string
+    mime?: string
+  } | null>(null)
 
   useEffect(() => {
     if (issue && isOpen) {
       loadEditData()
+      loadDetails()
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
       setSelectedTransition('')
       setHasChanges(false)
@@ -105,6 +122,20 @@ export function IssueEditModal({
 
     setHasChanges(hasStatusChange || hasAssigneeChange)
   }, [selectedTransition, selectedAssignee, issue])
+
+  const loadDetails = async () => {
+    if (!issue) return
+    setDetailsLoading(true)
+    try {
+      const d = await fetchIssueDetails(issue.key)
+      setDetails(d)
+    } catch (e) {
+      console.error('Failed to load issue details', e)
+      // do not set global error as edit controls are separate
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
 
   const loadEditData = async () => {
     if (!issue) return
@@ -387,6 +418,213 @@ export function IssueEditModal({
                   </CardContent>
                 </Card>
               )}
+
+              {/* Attachments */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className='flex items-center justify-between text-lg'>
+                    <span>Attachments</span>
+                    {detailsLoading && (
+                      <span className='text-muted-foreground text-sm flex items-center gap-2'>
+                        <Loader2 className='h-4 w-4 animate-spin' /> Loading...
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {details && details.attachments.length > 0 ? (
+                    <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+                      {details.attachments.map((att) => {
+                        const previewUrl = `/api/issues/${issue.key}/attachments/${att.id}?disposition=inline`
+                        const isPdf =
+                          (att.mimeType &&
+                            att.mimeType.toLowerCase().includes('pdf')) ||
+                          /\.pdf$/i.test(att.filename)
+                        const canPreview = att.isImage || isPdf
+                        return (
+                          <div
+                            key={att.id}
+                            className='border rounded p-3 flex items-center gap-3 bg-muted/30'
+                          >
+                            {att.isImage ? (
+                              <img
+                                src={previewUrl}
+                                alt={att.filename}
+                                className='h-16 w-16 object-cover rounded border cursor-pointer hover:opacity-90'
+                                onClick={() =>
+                                  setPreview({
+                                    url: previewUrl,
+                                    filename: att.filename,
+                                    mime: att.mimeType
+                                  })
+                                }
+                              />
+                            ) : (
+                              <div
+                                className={`h-16 w-16 flex items-center justify-center rounded border bg-white text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                onClick={() => {
+                                  if (canPreview)
+                                    setPreview({
+                                      url: previewUrl,
+                                      filename: att.filename,
+                                      mime: att.mimeType
+                                    })
+                                }}
+                              >
+                                {isPdf ? 'PDF Preview' : 'File'}
+                              </div>
+                            )}
+                            <div className='min-w-0 flex-1'>
+                              <div className='truncate text-sm font-medium'>
+                                {att.filename}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {(att.size / 1024).toFixed(1)} KB
+                              </div>
+                            </div>
+                            <a
+                              href={`/api/issues/${issue.key}/attachments/${att.id}`}
+                              className='text-blue-600 text-sm whitespace-nowrap'
+                            >
+                              Download
+                            </a>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className='text-muted-foreground text-sm'>
+                      {detailsLoading
+                        ? 'Loading attachments...'
+                        : 'No attachments'}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Comments */}
+              <Card>
+                <CardHeader>
+                  <Collapsible
+                    open={commentsOpen}
+                    onOpenChange={setCommentsOpen}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button className='w-full flex items-center justify-between text-left'>
+                        <CardTitle className='flex items-center justify-between text-lg w-full'>
+                          <span>Comments</span>
+                          <span className='flex items-center gap-2 text-sm text-muted-foreground'>
+                            {details?.comments?.length
+                              ? `${details.comments.length}`
+                              : ''}
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${commentsOpen ? 'rotate-180' : ''}`}
+                            />
+                          </span>
+                        </CardTitle>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent>
+                        {details && details.comments.length > 0 ? (
+                          <div className='space-y-4'>
+                            {details.comments.map((c) => (
+                              <div key={c.id} className='flex gap-3'>
+                                <Avatar className='h-8 w-8'>
+                                  <AvatarImage
+                                    src={
+                                      c.author.avatarUrls?.['24x24'] ||
+                                      '/placeholder.svg'
+                                    }
+                                  />
+                                  <AvatarFallback>
+                                    {c.author.displayName
+                                      .split(' ')
+                                      .map((n) => n[0])
+                                      .join('')}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className='min-w-0 flex-1'>
+                                  <div className='flex items-center gap-2 text-sm'>
+                                    <span className='font-medium'>
+                                      {c.author.displayName}
+                                    </span>
+                                    <span className='text-muted-foreground'>
+                                      • {new Date(c.created).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className='mt-1 whitespace-pre-wrap text-sm'>
+                                    {c.body}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className='text-muted-foreground text-sm'>
+                            {detailsLoading
+                              ? 'Loading comments...'
+                              : 'No comments'}
+                          </div>
+                        )}
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </CardHeader>
+              </Card>
+
+              {/* History */}
+              <Card>
+                <CardHeader>
+                  <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+                    <CollapsibleTrigger asChild>
+                      <button className='w-full flex items-center justify-between text-left'>
+                        <CardTitle className='flex items-center justify-between text-lg w-full'>
+                          <span>History</span>
+                          <span className='flex items-center gap-2 text-sm text-muted-foreground'>
+                            {details?.changelog?.length
+                              ? `${details.changelog.length}`
+                              : ''}
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`}
+                            />
+                          </span>
+                        </CardTitle>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent>
+                        {details && details.changelog.length > 0 ? (
+                          <div className='space-y-3'>
+                            {details.changelog.map((h) => (
+                              <div key={h.id} className='text-sm'>
+                                <div className='text-muted-foreground'>
+                                  {h.author.displayName} •{' '}
+                                  {new Date(h.created).toLocaleString()}
+                                </div>
+                                <ul className='ml-4 list-disc'>
+                                  {h.items.map((it, idx) => (
+                                    <li key={idx}>
+                                      {it.field}: {it.fromString || '—'} →{' '}
+                                      {it.toString || '—'}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className='text-muted-foreground text-sm'>
+                            {detailsLoading
+                              ? 'Loading history...'
+                              : 'No history'}
+                          </div>
+                        )}
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </CardHeader>
+              </Card>
             </div>
           </div>
 
@@ -561,7 +799,10 @@ export function IssueEditModal({
                   </CardHeader>
                   <CardContent>
                     <span className='text-sm font-medium'>
-                      {new Date(issue.duedate).toLocaleDateString()}
+                      {new Date(issue.duedate).toLocaleDateString(undefined, {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </span>
                   </CardContent>
                 </Card>
@@ -577,7 +818,10 @@ export function IssueEditModal({
                 </CardHeader>
                 <CardContent>
                   <span className='text-sm'>
-                    {new Date(issue.created).toLocaleDateString()}
+                    {new Date(issue.created).toLocaleDateString(undefined, {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </span>
                 </CardContent>
               </Card>
@@ -592,13 +836,43 @@ export function IssueEditModal({
                 </CardHeader>
                 <CardContent>
                   <span className='text-sm'>
-                    {new Date(issue.updated).toLocaleDateString()}
+                    {new Date(issue.updated).toLocaleDateString(undefined, {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </span>
                 </CardContent>
               </Card>
             </div>
           </div>
         </div>
+        {preview && (
+          <Dialog
+            open={!!preview}
+            onOpenChange={(open) => !open && setPreview(null)}
+          >
+            <DialogContent className='max-w-5xl w-[95vw] h-[90vh] p-0'>
+              <div className='relative w-full h-full'>
+                <span className='absolute top-2 left-2 z-10 max-w-[80%] truncate rounded bg-black/50 px-2 py-1 text-[11px] text-white'>
+                  {preview.filename}
+                </span>
+                {(preview.mime && preview.mime.toLowerCase().includes('pdf')) ||
+                /\.pdf$/i.test(preview.filename) ? (
+                  <iframe
+                    src={preview.url}
+                    className='w-full h-full rounded-none border-0'
+                  />
+                ) : (
+                  <img
+                    src={preview.url}
+                    alt={preview.filename}
+                    className='w-full h-full object-contain px-8'
+                  />
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   )

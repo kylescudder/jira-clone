@@ -181,7 +181,7 @@ export function FilterSidebar({
         variant='outline'
         size='sm'
         onClick={onToggle}
-        className='bg-background fixed top-20 left-4 z-50 border shadow-lg'
+        className='bg-background fixed bottom-4 left-4 z-50 border shadow-lg'
       >
         <Filter className='mr-2 h-4 w-4' />
         Filters {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}

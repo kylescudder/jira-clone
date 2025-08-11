@@ -49,6 +49,43 @@ export interface JiraIssue {
   }>
 }
 
+export interface JiraAttachmentMeta {
+  id: string
+  filename: string
+  size: number
+  mimeType?: string
+  isImage: boolean
+}
+
+export interface JiraComment {
+  id: string
+  author: {
+    displayName: string
+    avatarUrls?: { '24x24'?: string }
+  }
+  created: string
+  body: string
+}
+
+export interface JiraChangeLogItem {
+  id: string
+  author: {
+    displayName: string
+  }
+  created: string
+  items: Array<{
+    field: string
+    fromString?: string
+    toString?: string
+  }>
+}
+
+export interface JiraIssueDetails {
+  attachments: JiraAttachmentMeta[]
+  comments: JiraComment[]
+  changelog: JiraChangeLogItem[]
+}
+
 export interface JiraProject {
   id: string
   key: string

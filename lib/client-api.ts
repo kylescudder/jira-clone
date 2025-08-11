@@ -187,3 +187,16 @@ export async function fetchIssues(
     return []
   }
 }
+
+export async function fetchIssueDetails(issueKey: string) {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/details`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching issue details:', error)
+    return { attachments: [], comments: [], changelog: [] }
+  }
+}
