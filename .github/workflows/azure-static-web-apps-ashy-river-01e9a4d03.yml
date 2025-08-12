@@ -30,43 +30,17 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      # Install OIDC Client from Core Package (still needed for Azure auth)
-      - name: Install OIDC Client
-        run: bun add @actions/core@1.6.0 @actions/http-client
-
-      # Get GitHub OIDC token
-      - name: Get Id Token
-        uses: actions/github-script@v6
-        id: idtoken
-        with:
-          script: |
-            const coredemo = require('@actions/core');
-            return await coredemo.getIDToken();
-          result-encoding: string
-
       # Build project with Bun
       - name: Build project
         run: bun run build
 
-      # Deploy to Azure Static Web Apps
-      - name: Build And Deploy
+      # Deploy to Azure Static Web Apps without rebuilding
+      - name: Deploy to Azure Static Web Apps
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ASHY_RIVER_01E9A4D03 }}
           action: "upload"
-          app_location: "/" # App source code path
-          api_location: "" # Api source code path - optional
-          output_location: "build" # Built app content directory
-          github_id_token: ${{ steps.idtoken.outputs.result }}
-
-  close_pull_request_job:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    name: Close Pull Request Job
-    steps:
-      - name: Close Pull Request
-        id: closepullrequest
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          action: "close"
+          app_location: "/" # Path to your app source
+          output_location: ".next" # Next.js build output folder
+          skip_app_build: true # ✅ Prevent Oryx from rebuilding
