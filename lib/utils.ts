@@ -67,6 +67,9 @@ export function normalizeStatusName(status: string): string {
     monitoring: 'Under Monitoring',
     'being monitored': 'Under Monitoring',
 
+    // For Product Prioritisation (as provided)
+    'for product prioritisation': 'For Product Prioritisation',
+
     // Not an Issue group
     'not an issue': 'Not an Issue',
     invalid: 'Not an Issue',
@@ -96,36 +99,62 @@ export function normalizeStatusName(status: string): string {
 export function getStatusColor(status: string): string {
   const normalizedStatus = normalizeStatusName(status).toLowerCase()
 
-  switch (normalizedStatus) {
-    case 'to do':
-      return 'bg-blue-100 text-blue-800 border-blue-200'
-    case 'attention needed':
-      return 'bg-red-100 text-red-800 border-red-200'
-    case 'blocked':
-      return 'bg-rose-100 text-rose-800 border-rose-200'
-    case 'in progress':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-    case 'current active issue':
-      return 'bg-purple-100 text-purple-800 border-purple-200'
-    case 'in pr':
-      return 'bg-violet-100 text-violet-800 border-violet-200'
-    case 'in review':
-      return 'bg-orange-100 text-orange-800 border-orange-200'
-    case 'awaiting testing':
-      return 'bg-indigo-100 text-indigo-800 border-indigo-200'
-    case 'iteration required':
-      return 'bg-pink-100 text-pink-800 border-pink-200'
-    case 'awaiting information':
-      return 'bg-cyan-100 text-cyan-800 border-cyan-200'
-    case 'under monitoring':
-      return 'bg-teal-100 text-teal-800 border-teal-200'
-    case 'not an issue':
-      return 'bg-gray-100 text-gray-800 border-gray-200'
-    case 'requires config change':
-      return 'bg-amber-100 text-amber-800 border-amber-200'
-    case 'done':
-      return 'bg-green-100 text-green-800 border-green-200'
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-200'
+  // Group-based colours per user specification
+  // Grey background with white border
+  const greyGroup = new Set([
+    'to do',
+    'awaiting testing',
+    'for product prioritisation'
+  ])
+
+  // Blue with light blue border
+  const blueGroup = new Set([
+    'in progress',
+    'iteration required',
+    'blocked',
+    'current active issue',
+    'in pr',
+    'awaiting information',
+    'under monitoring'
+  ])
+
+  // Green with light green border
+  const greenGroup = new Set(['done', 'requires config change', 'not an issue'])
+
+  if (greyGroup.has(normalizedStatus)) {
+    return 'bg-gray-500 text-white border-white'
   }
+  if (blueGroup.has(normalizedStatus)) {
+    return 'bg-blue-600 text-white border-blue-200'
+  }
+  if (greenGroup.has(normalizedStatus)) {
+    return 'bg-green-600 text-white border-green-200'
+  }
+
+  // Default fallback (neutral grey with white border to blend with spec)
+  return 'bg-gray-500 text-white border-white'
+}
+
+export function getStatusGroupRank(status: string): number {
+  const s = normalizeStatusName(status).toLowerCase()
+  const greyGroup = new Set([
+    'to do',
+    'awaiting testing',
+    'for product prioritisation'
+  ])
+  const blueGroup = new Set([
+    'in progress',
+    'iteration required',
+    'blocked',
+    'current active issue',
+    'in pr',
+    'awaiting information',
+    'under monitoring'
+  ])
+  const greenGroup = new Set(['done', 'requires config change', 'not an issue'])
+  if (greyGroup.has(s)) return 0
+  if (blueGroup.has(s)) return 1
+  if (greenGroup.has(s)) return 2
+  // Unknowns: place after known groups but before green? Put at end to be safe
+  return 3
 }

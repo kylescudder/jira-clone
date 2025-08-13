@@ -14,7 +14,11 @@ import {
   CollapsibleTrigger
 } from '@/components/ui/collapsible'
 import { Badge } from '@/components/ui/badge'
-import { normalizeStatusName } from '@/lib/utils'
+import {
+  normalizeStatusName,
+  getStatusColor,
+  getStatusGroupRank
+} from '@/lib/utils'
 import type { FilterOptions, JiraIssue } from '@/types/jira'
 import { KeyboardKey } from '@/components/ui/keyboard-key'
 
@@ -259,24 +263,35 @@ export function FilterSidebar({
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className='mt-2 space-y-2'>
-              {uniqueStatuses.map((status) => (
-                <div key={status} className='flex items-center space-x-2'>
-                  <Checkbox
-                    id={`status-${status}`}
-                    checked={filters.status?.includes(status) || false}
-                    onCheckedChange={(checked) =>
-                      handleMultiSelectChange(
-                        'status',
-                        status,
-                        checked as boolean
-                      )
-                    }
-                  />
-                  <Label htmlFor={`status-${status}`} className='text-sm'>
-                    {status}
-                  </Label>
-                </div>
-              ))}
+              {[...uniqueStatuses]
+                .sort((a, b) => {
+                  const ga = getStatusGroupRank(a)
+                  const gb = getStatusGroupRank(b)
+                  if (ga !== gb) return ga - gb
+                  return a.localeCompare(b)
+                })
+                .map((status) => (
+                  <div key={status} className='flex items-center space-x-2'>
+                    <Checkbox
+                      id={`status-${status}`}
+                      checked={filters.status?.includes(status) || false}
+                      onCheckedChange={(checked) =>
+                        handleMultiSelectChange(
+                          'status',
+                          status,
+                          checked as boolean
+                        )
+                      }
+                    />
+                    <Label htmlFor={`status-${status}`} className='text-sm'>
+                      <span
+                        className={`inline-block rounded border px-2 py-0.5 text-xs ${getStatusColor(status)}`}
+                      >
+                        {status}
+                      </span>
+                    </Label>
+                  </div>
+                ))}
             </CollapsibleContent>
           </Collapsible>
 

@@ -199,6 +199,84 @@ export async function updateIssueAssignee(
   }
 }
 
+export async function postIssueComment(
+  issueKey: string,
+  text: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    })
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Comment post failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('Error posting comment:', error)
+    return false
+  }
+}
+
+export async function editIssueComment(
+  issueKey: string,
+  commentId: string,
+  text: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `/api/issues/${issueKey}/comment/${commentId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      }
+    )
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Comment edit failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('Error editing comment:', error)
+    return false
+  }
+}
+
+export async function deleteIssueComment(
+  issueKey: string,
+  commentId: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `/api/issues/${issueKey}/comment/${commentId}`,
+      { method: 'DELETE' }
+    )
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Comment delete failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('Error deleting comment:', error)
+    return false
+  }
+}
+
 export async function fetchIssues(
   projectKey: string,
   filters?: FilterOptions
@@ -310,4 +388,70 @@ export async function fetchIssueDetails(issueKey: string) {
       }
     )
   }
+}
+
+// Optimistic preloading helpers
+export async function preloadIssueData(issueKey: string, projectKey: string) {
+  try {
+    // If running on server, skip
+    if (typeof window === 'undefined') return
+
+    const needsDetails = !getCachedData(`issueDetails:${issueKey}`)
+    const needsTransitions = !getCachedData(`transitions:${issueKey}`)
+    const needsUsers = !getCachedData(`projectUsers:${projectKey}`)
+
+    const tasks: Array<Promise<any>> = []
+    // Fire off requests without awaiting serially; let cache be populated when complete
+    if (needsDetails)
+      tasks.push(
+        fetch(`/api/issues/${issueKey}/details`)
+          .then(async (r) => {
+            if (r.ok) {
+              const data = await r.json()
+              setCachedData(`issueDetails:${issueKey}`, data, 30 * 60 * 1000)
+            }
+          })
+          .catch(() => {})
+      )
+    if (needsTransitions)
+      tasks.push(
+        fetch(`/api/issues/${issueKey}/transitions`)
+          .then(async (r) => {
+            if (r.ok) {
+              const data = await r.json()
+              setCachedData(`transitions:${issueKey}`, data, 60 * 60 * 1000)
+            }
+          })
+          .catch(() => {})
+      )
+    if (needsUsers)
+      tasks.push(
+        fetch(`/api/projects/${projectKey}/users`)
+          .then(async (r) => {
+            if (r.ok) {
+              const data = await r.json()
+              setCachedData(`projectUsers:${projectKey}`, data, 60 * 60 * 1000)
+            }
+          })
+          .catch(() => {})
+      )
+
+    // Do not throw; allow background completion
+    await Promise.allSettled(tasks)
+  } catch {
+    // silent fail - preloading is best-effort
+  }
+}
+
+export function preloadIssues(
+  issues: JiraIssue[],
+  projectKey: string,
+  limit = 10
+) {
+  if (!issues || issues.length === 0) return
+  const slice = issues.slice(0, Math.max(0, limit))
+  // Kick off preloads without awaiting
+  slice.forEach((issue) => {
+    void preloadIssueData(issue.key, projectKey)
+  })
 }

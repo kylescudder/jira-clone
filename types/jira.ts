@@ -3,6 +3,7 @@ export interface JiraIssue {
   key: string
   summary: string
   description?: string
+  descriptionHtml?: string
   status: {
     name: string
     statusCategory: {
@@ -66,6 +67,7 @@ export interface JiraComment {
   }
   created: string
   body: string
+  bodyHtml?: string
 }
 
 export interface JiraChangeLogItem {

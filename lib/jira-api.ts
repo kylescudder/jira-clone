@@ -274,6 +274,189 @@ function extractTextFromADF(adfContent: any): string {
   }
 }
 
+// Convert Jira ADF to minimal HTML preserving basic formatting
+export function adfToHtml(
+  adf: any,
+  attachments?: Array<{ id: string; filename: string; content?: string }>,
+  issueKey?: string
+): string {
+  if (!adf) return ''
+
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const renderMarks = (text: string, marks?: any[]) => {
+    if (!marks || !Array.isArray(marks) || marks.length === 0) return esc(text)
+    let html = esc(text)
+    // Apply marks in a stable order
+    const order = {
+      link: 1,
+      code: 2,
+      strong: 3,
+      em: 4,
+      underline: 5,
+      strike: 6
+    }
+    const sorted = [...marks].sort(
+      (a, b) => (order[a.type] || 99) - (order[b.type] || 99)
+    )
+    for (const mark of sorted) {
+      switch (mark.type) {
+        case 'link':
+          {
+            const href = mark.attrs?.href || '#'
+            html = `<a href="${href}" target="_blank" rel="noopener noreferrer">${html}</a>`
+          }
+          break
+        case 'code':
+          html = `<code>${html}</code>`
+          break
+        case 'strong':
+          html = `<strong>${html}</strong>`
+          break
+        case 'em':
+          html = `<em>${html}</em>`
+          break
+        case 'underline':
+          html = `<u>${html}</u>`
+          break
+        case 'strike':
+        case 'strikeout':
+          html = `<s>${html}</s>`
+          break
+        default:
+          break
+      }
+    }
+    return html
+  }
+
+  const renderNode = (node: any): string => {
+    if (!node) return ''
+    if (node.type === 'text') {
+      return renderMarks(node.text || '', node.marks)
+    }
+
+    const renderChildren = (n: any) =>
+      (n.content || []).map((c: any) => renderNode(c)).join('')
+
+    switch (node.type) {
+      case 'doc':
+        return renderChildren(node)
+      case 'paragraph': {
+        const inner = renderChildren(node)
+        // If paragraph is empty, render an empty line to keep spacing
+        return `<p>${inner || '<br />'}</p>`
+      }
+      case 'heading': {
+        const level = Math.min(Math.max(Number(node.attrs?.level) || 1, 1), 6)
+        return `<h${level}>${renderChildren(node)}</h${level}>`
+      }
+      case 'hardBreak':
+        return '<br />'
+      case 'bulletList':
+        return `<ul>${renderChildren(node)}</ul>`
+      case 'orderedList':
+        return `<ol>${renderChildren(node)}</ol>`
+      case 'listItem':
+        return `<li>${renderChildren(node)}</li>`
+      case 'blockquote':
+        return `<blockquote>${renderChildren(node)}</blockquote>`
+      case 'codeBlock': {
+        const code = renderChildren(node)
+        return `<pre><code>${code}</code></pre>`
+      }
+      // Render media containers
+      case 'mediaSingle': {
+        // mediaSingle usually wraps a single media node (image/video)
+        const inner = renderChildren(node)
+        // Wrap in a responsive container
+        return `<div class="adf-media adf-media-single" style="margin: 0.5rem 0;">${inner}</div>`
+      }
+      case 'mediaGroup': {
+        const inner = renderChildren(node)
+        return `<div class="adf-media-group" style="display:flex; flex-wrap:wrap; gap:8px; margin: 0.5rem 0;">${inner}</div>`
+      }
+      case 'media': {
+        const attrs = node.attrs || {}
+        const alt = esc(attrs.alt || attrs.title || '')
+
+        // Try to match this media node to a Jira attachment
+        let matchedAttachment
+        if (attachments && attachments.length) {
+          // Match by filename first
+          if (attrs.alt) {
+            matchedAttachment = attachments.find(
+              (att) => att.filename === attrs.alt
+            )
+          }
+          // Match by mediaId in content URL if available
+          if (!matchedAttachment && attrs.id) {
+            matchedAttachment = attachments.find((att) =>
+              att.content?.includes(`/attachment/${att.id}/`)
+            )
+          }
+        }
+
+        // If matched, use numeric ID for your proxy
+        if (matchedAttachment) {
+          const src = issueKey
+            ? `/api/issues/${issueKey}/attachments/${matchedAttachment.id}?disposition=inline`
+            : `/api/attachments/${matchedAttachment.id}?disposition=inline`
+          return `<img src="${src}" alt="${alt}" style="max-width:100%; height:auto; border-radius:4px;" />`
+        }
+
+        // Fallback to existing UUID-based URL
+        if (attrs.id || attrs.mediaId) {
+          const mediaId = attrs.id || attrs.mediaId
+          const src = issueKey
+            ? `/api/issues/${issueKey}/attachments/${mediaId}?disposition=inline`
+            : `/api/attachments/${mediaId}?disposition=inline`
+          return `<img src="${src}" alt="${alt}" style="max-width:100%; height:auto; border-radius:4px;" />`
+        }
+
+        return `<span class="adf-media-file" title="${alt}" style="display:inline-block; background:rgba(125,125,125,0.1); color:inherit; font-size:12px; padding:2px 6px; border-radius:4px;">[media]</span>`
+      }
+      // Non-standard but sometimes seen in exported ADF
+      case 'image': {
+        const src = node.attrs?.src
+        if (src) {
+          const alt = esc(node.attrs?.alt || node.attrs?.title || '')
+          let url = src
+          const m = url.match(
+            /(?:https?:\/\/[^/]+)?\/secure\/attachment\/(\d+)\//
+          )
+          if (m && m[1]) {
+            url = issueKey
+              ? `/api/issues/${issueKey}/attachments/${m[1]}?disposition=inline`
+              : `/api/attachments/${m[1]}?disposition=inline`
+          }
+          return `<img src="${url}" alt="${alt}" style="max-width:100%; height:auto; border-radius:4px;" />`
+        }
+        return ''
+      }
+      default:
+        if (Array.isArray(node.content)) return renderChildren(node)
+        return ''
+    }
+  }
+
+  try {
+    if (typeof adf === 'string') return `<p>${esc(adf)}</p>`
+
+    // If full document
+    if (adf.type === 'doc') return renderNode(adf)
+
+    // If a node or array of nodes
+    if (Array.isArray(adf)) return adf.map(renderNode).join('')
+
+    return renderNode(adf)
+  } catch (e) {
+    console.warn('adfToHtml render error', e)
+    return ''
+  }
+}
+
 export async function getCurrentUser(): Promise<JiraUser | null> {
   try {
     const data = await jiraFetch('/myself')
@@ -523,15 +706,27 @@ export async function getIssueDetails(issueKey: string) {
     const commentsData = await jiraFetch(
       `/issue/${issueKey}/comment?orderBy=created&maxResults=100`
     )
-    const comments = (commentsData?.comments || []).map((c: any) => ({
-      id: String(c.id),
-      author: {
-        displayName: c.author?.displayName,
-        avatarUrls: c.author?.avatarUrls
-      },
-      created: c.created,
-      body: typeof c.body === 'string' ? c.body : extractTextFromADF(c.body)
-    }))
+    console.log('commentsData: ', commentsData)
+    const comments = (commentsData?.comments || [])
+      .map((c: any) => ({
+        id: String(c.id),
+        author: {
+          displayName: c.author?.displayName,
+          avatarUrls: c.author?.avatarUrls
+        },
+        created: c.created,
+        body: typeof c.body === 'string' ? c.body : extractTextFromADF(c.body),
+        bodyHtml:
+          typeof c.body === 'string'
+            ? adfToHtml(c.body, issueData?.fields?.attachment, issueKey)
+            : adfToHtml(c.body, issueData?.fields?.attachment, issueKey)
+      }))
+      .sort((a: any, b: any) => {
+        const ta = new Date(a.created).getTime()
+        const tb = new Date(b.created).getTime()
+        if (isNaN(ta) || isNaN(tb)) return 0
+        return tb - ta // newest first
+      })
 
     // Changelog (paginate up to 100)
     const changelogData = await jiraFetch(
@@ -552,6 +747,86 @@ export async function getIssueDetails(issueKey: string) {
   } catch (error) {
     console.error('Error fetching issue details:', error)
     return { attachments: [], comments: [], changelog: [] }
+  }
+}
+
+// Helper to build Atlassian Document Format (ADF) from plain text, preserving newlines
+function buildADFBodyFromText(text: string) {
+  // Normalize line endings
+  const normalized = (text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  // Split by double newlines to create paragraphs
+  const paragraphs = normalized.split(/\n\n+/)
+
+  const content = paragraphs.map((para) => {
+    // Within a paragraph, single newlines become hardBreak nodes
+    const lines = para.split('\n')
+    const paragraphContent: any[] = []
+    lines.forEach((line, idx) => {
+      if (line.length) {
+        paragraphContent.push({ type: 'text', text: line })
+      }
+      if (idx < lines.length - 1) {
+        paragraphContent.push({ type: 'hardBreak' })
+      }
+    })
+    // If paragraph is empty, keep an empty text node so Jira shows a blank line
+    if (paragraphContent.length === 0)
+      paragraphContent.push({ type: 'text', text: '' })
+    return { type: 'paragraph', content: paragraphContent }
+  })
+
+  return {
+    body: {
+      type: 'doc',
+      version: 1,
+      content
+    }
+  }
+}
+
+export async function createIssueComment(issueKey: string, text: string) {
+  const body = buildADFBodyFromText(text)
+
+  try {
+    const res = await jiraFetch(`/issue/${issueKey}/comment`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    return res
+  } catch (error) {
+    console.error('Error creating comment:', error)
+    throw error
+  }
+}
+
+export async function updateIssueComment(
+  issueKey: string,
+  commentId: string,
+  text: string
+) {
+  const body = buildADFBodyFromText(text)
+
+  try {
+    const res = await jiraFetch(`/issue/${issueKey}/comment/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    })
+    return res
+  } catch (error) {
+    console.error('Error updating comment:', error)
+    throw error
+  }
+}
+
+export async function deleteIssueComment(issueKey: string, commentId: string) {
+  try {
+    await jiraFetch(`/issue/${issueKey}/comment/${commentId}`, {
+      method: 'DELETE'
+    })
+    return true
+  } catch (error) {
+    console.error('Error deleting comment:', error)
+    throw error
   }
 }
 
@@ -694,6 +969,11 @@ export async function getIssues(
       key: issue.key,
       summary: issue.fields.summary,
       description: extractTextFromADF(issue.fields.description),
+      descriptionHtml: adfToHtml(
+        issue.fields.description,
+        issue.fields.attachment,
+        issue.key
+      ),
       status: issue.fields.status,
       priority: issue.fields.priority,
       assignee: issue.fields.assignee,
@@ -722,4 +1002,34 @@ export async function getIssues(
     console.error('Error fetching issues:', error)
     return []
   }
+}
+
+// Streaming fetch for Jira attachments/content
+export async function jiraFetchStream(endpoint: string, options?: RequestInit) {
+  const { base, headers } = await getAuthAndBase()
+  let response = await fetch(`${base}/rest/api/3${endpoint}`, {
+    headers: {
+      ...headers,
+      // Do not force content-type for binary streams
+      // Accept anything so Jira returns original content
+      Accept: headers['Accept'] || '*/*'
+    } as any,
+    ...options
+  })
+
+  if ((response as any).status === 401 && basicAuth) {
+    try {
+      response = await fetch(`${JIRA_BASE_URL}/rest/api/3${endpoint}`, {
+        headers: {
+          Authorization: `Basic ${basicAuth}`,
+          Accept: '*/*'
+        },
+        ...options
+      })
+    } catch (e) {
+      // network error; handled by caller
+    }
+  }
+
+  return response
 }

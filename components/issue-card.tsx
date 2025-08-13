@@ -10,9 +10,10 @@ import type { JiraIssue } from '@/types/jira'
 interface IssueCardProps {
   issue: JiraIssue
   onClick?: (issue: JiraIssue) => void
+  onHover?: (issue: JiraIssue) => void
 }
 
-export function IssueCard({ issue, onClick }: IssueCardProps) {
+export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
   const getPriorityColor = (priority: string) => {
     switch (priority.toLowerCase()) {
       case 'critical':
@@ -59,6 +60,8 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
     <Card
       className='bg-card mb-3 w-full cursor-pointer transition-shadow hover:shadow-md'
       onClick={() => onClick?.(issue)}
+      onMouseEnter={() => onHover?.(issue)}
+      onFocus={() => onHover?.(issue)}
     >
       <CardHeader className='space-y-3 pb-3'>
         {/* Top row - Issue key and priority */}

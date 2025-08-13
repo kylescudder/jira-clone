@@ -11,6 +11,7 @@ import type { JiraIssue, FilterOptions, BoardColumn } from '@/types/jira'
 interface KanbanBoardProps {
   issues: JiraIssue[]
   onIssueClick?: (issue: JiraIssue) => void
+  onIssueHover?: (issue: JiraIssue) => void
   filters: FilterOptions
   onFiltersChange: (filters: FilterOptions) => void
   isFilterSidebarOpen: boolean
@@ -20,6 +21,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({
   issues,
   onIssueClick,
+  onIssueHover,
   filters,
   onFiltersChange,
   isFilterSidebarOpen,
@@ -266,6 +268,7 @@ export function KanbanBoard({
                         key={issue.id}
                         issue={issue}
                         onClick={onIssueClick}
+                        onHover={onIssueHover}
                       />
                     ))}
                     {column.issues.length === 0 && (

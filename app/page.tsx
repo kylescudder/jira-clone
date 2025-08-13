@@ -18,7 +18,9 @@ import {
   fetchProjects,
   fetchCurrentUser,
   fetchProjectSprints,
-  getCachedData
+  getCachedData,
+  preloadIssueData,
+  preloadIssues
 } from '@/lib/client-api'
 import type {
   JiraIssue,
@@ -384,6 +386,12 @@ export default function HomePage() {
     setSelectedIssue(issue)
   }
 
+  const handleIssueHover = (issue: JiraIssue) => {
+    if (!selectedProject) return
+    // Preload best-effort on hover/focus
+    void preloadIssueData(issue.key, selectedProject)
+  }
+
   const handleIssueUpdate = async () => {
     if (selectedProject && selectedSprints.length > 0) {
       // Refresh base (unfiltered) issues for options and board filtering
@@ -413,6 +421,17 @@ export default function HomePage() {
     : null
 
   const canLoadIssues = selectedProject && selectedSprints.length > 0
+
+  // Preload in background when issues list changes
+  useEffect(() => {
+    if (!selectedProject || issues.length === 0) return
+    // Preload current active issue first if present
+    if (currentActiveIssue) {
+      void preloadIssueData(currentActiveIssue.key, selectedProject)
+    }
+    // Then preload first N visible issues
+    preloadIssues(issues, selectedProject, 20)
+  }, [issues, selectedProject, currentActiveIssue])
 
   // Calculate sprint statistics
   const sprintStats = sprints.reduce(
@@ -641,6 +660,7 @@ export default function HomePage() {
           <KanbanBoard
             issues={issues}
             onIssueClick={handleIssueClick}
+            onIssueHover={handleIssueHover}
             filters={filters}
             onFiltersChange={handleFiltersChange}
             isFilterSidebarOpen={isFilterSidebarOpen}
