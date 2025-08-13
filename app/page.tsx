@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { KanbanBoard } from '@/components/kanban-board'
 import { IssueEditModal } from '@/components/issue-edit-modal'
 import { SprintSelector } from '@/components/sprint-selector'
@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { KeyboardKey } from '@/components/ui/keyboard-key'
+import { Input } from '@/components/ui/input'
 
 interface Sprint {
   id: string
@@ -49,6 +50,8 @@ const STORAGE_KEYS = {
 
 export default function HomePage() {
   const [issues, setIssues] = useState<JiraIssue[]>([])
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [projects, setProjects] = useState<JiraProject[]>([])
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [currentUser, setCurrentUser] = useState<JiraUser | null>(null)
@@ -200,7 +203,9 @@ export default function HomePage() {
           activeElement instanceof HTMLInputElement ||
           activeElement instanceof HTMLTextAreaElement ||
           activeElement instanceof HTMLSelectElement ||
-          activeElement?.getAttribute('contenteditable') === 'true'
+          (activeElement as HTMLElement | null)?.getAttribute?.(
+            'contenteditable'
+          ) === 'true'
 
         if (!isInputField && currentUser) {
           event.preventDefault()
@@ -221,6 +226,35 @@ export default function HomePage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [issues, currentUser])
+
+  // Add Cmd/Ctrl+K shortcut to focus search input
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      const isMod =
+        (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey
+      if (isMod && key === 'k') {
+        const activeElement = document.activeElement
+        const isInputField =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement instanceof HTMLSelectElement ||
+          (activeElement as HTMLElement | null)?.getAttribute?.(
+            'contenteditable'
+          ) === 'true'
+        // If we're already in an input/text area, let the native behavior happen (e.g., browser search fields)
+        if (isInputField && activeElement === searchInputRef.current) return
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        // Select existing value to allow quick overwrite
+        if (searchInputRef.current) {
+          searchInputRef.current.select?.()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // Load projects and user on mount
   useEffect(() => {
@@ -523,6 +557,16 @@ export default function HomePage() {
             )}
           </div>
           <div className='flex items-center gap-4'>
+            <div className='w-[280px]'>
+              <Input
+                ref={searchInputRef}
+                type='text'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder='Search key, title, description, comments'
+                aria-label='Search issues'
+              />
+            </div>
             <ThemeToggle />
             <Badge variant='outline'>{issues.length} issues loaded</Badge>
             <Button
@@ -667,6 +711,8 @@ export default function HomePage() {
             onToggleFilterSidebar={() =>
               setIsFilterSidebarOpen(!isFilterSidebarOpen)
             }
+            searchQuery={searchQuery}
+            projectKey={selectedProject}
           />
         </div>
       </div>

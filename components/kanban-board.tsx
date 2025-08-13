@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { IssueCard } from '@/components/issue-card'
 import { FilterSidebar } from '@/components/filter-sidebar'
 import { normalizeStatusName } from '@/lib/utils'
 import type { JiraIssue, FilterOptions, BoardColumn } from '@/types/jira'
+import { getCachedData, preloadIssues } from '@/lib/client-api'
 
 interface KanbanBoardProps {
   issues: JiraIssue[]
@@ -16,6 +17,8 @@ interface KanbanBoardProps {
   onFiltersChange: (filters: FilterOptions) => void
   isFilterSidebarOpen: boolean
   onToggleFilterSidebar: () => void
+  searchQuery?: string
+  projectKey?: string
 }
 
 export function KanbanBoard({
@@ -25,7 +28,9 @@ export function KanbanBoard({
   filters,
   onFiltersChange,
   isFilterSidebarOpen,
-  onToggleFilterSidebar
+  onToggleFilterSidebar,
+  searchQuery,
+  projectKey
 }: KanbanBoardProps) {
   // Remove the internal filter state
   // const [filters, setFilters] = useState<FilterOptions>({})
@@ -135,8 +140,45 @@ export function KanbanBoard({
       )
     }
 
+    // Apply text search (issue key, summary, description, comments)
+    const q = (searchQuery || '').trim().toLowerCase()
+    if (q) {
+      const norm = (s: string) => s.toLowerCase()
+      const stripHtml = (s: string) => s.replace(/<[^>]*>/g, ' ')
+      const normKey = (k: string) => k.replace(/-/g, '').toLowerCase()
+      const normQ = q.replace(/-/g, '')
+
+      filtered = filtered.filter((issue) => {
+        // Key match (case-insensitive, hyphen-insensitive)
+        if (norm(issue.key).includes(q) || normKey(issue.key).includes(normQ))
+          return true
+
+        // Summary/description
+        if (issue.summary && norm(issue.summary).includes(q)) return true
+        if (issue.description && norm(issue.description).includes(q))
+          return true
+        if (
+          issue.descriptionHtml &&
+          norm(stripHtml(issue.descriptionHtml)).includes(q)
+        )
+          return true
+
+        // Comments from cached details (best-effort)
+        const details = getCachedData<any>(`issueDetails:${issue.key}`)
+        if (details?.comments?.length) {
+          for (const c of details.comments) {
+            const body = c.body || ''
+            const bodyHtml = c.bodyHtml ? stripHtml(c.bodyHtml) : ''
+            if (norm(body).includes(q) || norm(bodyHtml).includes(q))
+              return true
+          }
+        }
+        return false
+      })
+    }
+
     return filtered
-  }, [issues, filters])
+  }, [issues, filters, searchQuery])
 
   const columns: BoardColumn[] = useMemo(() => {
     const statusGroups = {
@@ -162,39 +204,20 @@ export function KanbanBoard({
         title,
         statusKeys,
         issues: filteredIssues.filter((issue) =>
-          statusKeys.some((status) =>
-            normalizeStatusName(issue.status.name)
-              .toLowerCase()
-              .includes(status.toLowerCase())
-          )
+          statusKeys.some((status) => {
+            const issueNorm = normalizeStatusName(
+              issue.status.name
+            ).toLowerCase()
+            const keyNorm = normalizeStatusName(status).toLowerCase()
+            return issueNorm === keyNorm
+          })
         )
       })
     )
 
-    // If status filter is active, only show columns that:
-    // 1. Have issues in them, OR
-    // 2. Could potentially have issues (their status is in the filter)
-    if (filters.status?.length) {
-      return allColumns.filter((column) => {
-        // Show column if it has issues
-        if (column.issues.length > 0) {
-          return true
-        }
-
-        // Show column if any of its status keys match the filter
-        return column.statusKeys.some((statusKey) =>
-          filters.status!.some(
-            (filterStatus) =>
-              normalizeStatusName(statusKey).toLowerCase() ===
-              filterStatus.toLowerCase()
-          )
-        )
-      })
-    }
-
-    // If no status filter, show all columns
-    return allColumns
-  }, [filteredIssues, filters.status])
+    // Hide columns that have no issues to declutter the view
+    return allColumns.filter((column) => column.issues.length > 0)
+  }, [filteredIssues])
 
   const getColumnColor = (columnTitle: string) => {
     switch (columnTitle) {
@@ -230,6 +253,15 @@ export function KanbanBoard({
         return 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
     }
   }
+
+  // Best-effort: when searching, preload issue details for comment search
+  useEffect(() => {
+    const q = (searchQuery || '').trim()
+    if (!q || !projectKey || !issues.length) return
+    // Preload details in background for current issues (cap to 200 for safety)
+    const cap = Math.min(issues.length, 200)
+    preloadIssues(issues, projectKey, cap)
+  }, [searchQuery, projectKey, issues])
 
   return (
     <div className='bg-background flex h-full'>

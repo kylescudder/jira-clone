@@ -1305,7 +1305,7 @@ export function IssueEditModal({
             open={!!preview}
             onOpenChange={(open) => !open && setPreview(null)}
           >
-            <DialogContent className='max-w-5xl w-[95vw] p-0'>
+            <DialogContent className='w-[95vw] p-0'>
               <DialogHeader className='bg-muted/50 border-b px-3 py-2'>
                 <DialogTitle
                   className='flex items-center justify-between text-sm font-medium truncate'
