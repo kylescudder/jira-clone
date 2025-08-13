@@ -54,7 +54,6 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
   }
 
   const isOverdue = issue.duedate && new Date(issue.duedate) < new Date()
-  const normalizedStatus = normalizeStatusName(issue.status.name)
 
   return (
     <Card
@@ -87,12 +86,6 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
             className={`shrink-0 text-xs ${getIssueTypeColor(issue.issuetype.name)}`}
           >
             {issue.issuetype.name}
-          </Badge>
-          <Badge
-            variant='outline'
-            className={`shrink-0 text-xs ${getStatusColor(issue.status.name)}`}
-          >
-            {normalizedStatus}
           </Badge>
         </div>
       </CardHeader>
