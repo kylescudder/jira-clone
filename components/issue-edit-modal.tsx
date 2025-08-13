@@ -31,7 +31,8 @@ import {
   Tag,
   Component,
   ChevronDown,
-  RefreshCw
+  RefreshCw,
+  Link as LinkIcon
 } from 'lucide-react'
 import {
   Collapsible,
@@ -90,6 +91,7 @@ export function IssueEditModal({
     const [editText, setEditText] = useState(comment.body)
     const [saving, setSaving] = useState(false)
     const [err, setErr] = useState<string | null>(null)
+    const [copiedCommentLink, setCopiedCommentLink] = useState(false)
 
     const handleEditSave = async () => {
       const text = editText.trim()
@@ -126,7 +128,7 @@ export function IssueEditModal({
     }
 
     return (
-      <div className='flex gap-3 rounded-md border border-border bg-muted/30 p-3'>
+      <div className='flex gap-3 rounded-md border border-border bg-muted/30 p-3 group'>
         <Avatar className='h-8 w-8'>
           <AvatarImage
             src={comment.author.avatarUrls?.['24x24'] || '/placeholder.svg'}
@@ -139,7 +141,7 @@ export function IssueEditModal({
           </AvatarFallback>
         </Avatar>
         <div className='min-w-0 flex-1'>
-          <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
+          <div className='flex flex-wrap items-center justify-between gap-2 text-sm relative'>
             <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
               <span className='font-medium'>{comment.author.displayName}</span>
               <span className='text-muted-foreground'>
@@ -147,6 +149,61 @@ export function IssueEditModal({
               </span>
             </div>
             <div className='flex items-center gap-3 text-xs text-muted-foreground'>
+              {/* Copy comment link */}
+              <button
+                type='button'
+                className={`${copiedCommentLink ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-500 inline-flex items-center gap-1 border border-border rounded px-2 py-0.5 hover:bg-muted`}
+                title='Copy comment link'
+                aria-label='Copy comment link'
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const base = jiraBase?.trim() || ''
+                  const baseUrl = base
+                    ? base.replace(/\/$/, '')
+                    : typeof window !== 'undefined'
+                      ? window.location.origin
+                      : ''
+                  const url = baseUrl
+                    ? `${baseUrl}/browse/${issueKey}?focusedCommentId=${comment.id}`
+                    : `${issueKey}`
+                  let ok = false
+                  try {
+                    await navigator.clipboard.writeText(url)
+                    ok = true
+                  } catch (err) {
+                    try {
+                      const el = document.createElement('textarea')
+                      el.value = url
+                      el.setAttribute('readonly', '')
+                      el.style.position = 'fixed'
+                      el.style.top = '-9999px'
+                      document.body.appendChild(el)
+                      el.select()
+                      document.execCommand('copy')
+                      document.body.removeChild(el)
+                      ok = true
+                    } catch {}
+                  }
+                  if (ok) {
+                    setCopiedCommentLink(true)
+                    setTimeout(() => setCopiedCommentLink(false), 1500)
+                  }
+                }}
+              >
+                <span className='relative inline-block h-3.5 w-3.5'>
+                  <LinkIcon
+                    className={`absolute inset-0 h-3.5 w-3.5 transition-opacity duration-500 ${copiedCommentLink ? 'opacity-0' : 'opacity-100'}`}
+                    aria-hidden={copiedCommentLink ? 'true' : 'false'}
+                  />
+                  <CheckCircle
+                    className={`absolute inset-0 h-3.5 w-3.5 text-green-600 transition-opacity duration-500 ${copiedCommentLink ? 'opacity-100' : 'opacity-0'}`}
+                    aria-hidden={copiedCommentLink ? 'false' : 'true'}
+                  />
+                </span>
+                <span className='sr-only' aria-live='polite'>
+                  {copiedCommentLink ? 'Comment link copied to clipboard' : ''}
+                </span>
+              </button>
               <button
                 className='hover:underline'
                 onClick={() => setIsEditing((v) => !v)}
@@ -238,6 +295,7 @@ export function IssueEditModal({
   const [commentError, setCommentError] = useState<string | null>(null)
   const [commentSuccess, setCommentSuccess] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState(false)
+  const [copiedIssueLink, setCopiedIssueLink] = useState(false)
 
   useEffect(() => {
     if (issue && isOpen) {
@@ -477,12 +535,14 @@ export function IssueEditModal({
 
   const normalizedStatus = normalizeStatusName(issue.status.name)
 
+  const jiraBase = process.env.JIRA_BASE_URL || ''
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className='max-h-[90vh] max-w-6xl p-0'>
         <DialogHeader className='bg-muted/50 border-b px-6 py-4'>
           <DialogTitle className='flex items-center justify-between'>
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-3 group'>
               <Badge
                 variant='outline'
                 className={`relative px-3 py-1 font-mono text-sm cursor-pointer select-none transition-transform active:scale-95 ${
@@ -527,6 +587,61 @@ export function IssueEditModal({
                   {copiedId ? 'Issue key copied to clipboard' : ''}
                 </span>
               </Badge>
+              {/* Copy issue link button */}
+              <button
+                type='button'
+                className={`${copiedIssueLink ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-500 inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded px-2 py-1 hover:bg-muted`}
+                title='Copy issue link'
+                aria-label='Copy issue link'
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const base = jiraBase?.trim() || ''
+                  const baseUrl = base
+                    ? base.replace(/\/$/, '')
+                    : typeof window !== 'undefined'
+                      ? window.location.origin
+                      : ''
+                  const url = baseUrl
+                    ? `${baseUrl}/browse/${issue.key}`
+                    : `${issue.key}`
+                  let ok = false
+                  try {
+                    await navigator.clipboard.writeText(url)
+                    ok = true
+                  } catch (err) {
+                    try {
+                      const el = document.createElement('textarea')
+                      el.value = url
+                      el.setAttribute('readonly', '')
+                      el.style.position = 'fixed'
+                      el.style.top = '-9999px'
+                      document.body.appendChild(el)
+                      el.select()
+                      document.execCommand('copy')
+                      document.body.removeChild(el)
+                      ok = true
+                    } catch {}
+                  }
+                  if (ok) {
+                    setCopiedIssueLink(true)
+                    setTimeout(() => setCopiedIssueLink(false), 1500)
+                  }
+                }}
+              >
+                <span className='relative inline-block h-3.5 w-3.5'>
+                  <LinkIcon
+                    className={`absolute inset-0 h-3.5 w-3.5 transition-opacity duration-500 ${copiedIssueLink ? 'opacity-0' : 'opacity-100'}`}
+                    aria-hidden={copiedIssueLink ? 'true' : 'false'}
+                  />
+                  <CheckCircle
+                    className={`absolute inset-0 h-3.5 w-3.5 text-green-600 transition-opacity duration-500 ${copiedIssueLink ? 'opacity-100' : 'opacity-0'}`}
+                    aria-hidden={copiedIssueLink ? 'false' : 'true'}
+                  />
+                </span>
+                <span className='sr-only' aria-live='polite'>
+                  {copiedIssueLink ? 'Issue link copied to clipboard' : ''}
+                </span>
+              </button>
               <h2 className='text-foreground line-clamp-2 text-xl font-semibold'>
                 {issue.summary}
               </h2>
