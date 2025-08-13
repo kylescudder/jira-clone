@@ -932,12 +932,12 @@ export function IssueEditModal({
                 aria-label='Refresh details'
               >
                 {detailsLoading ? (
-                  <span className='inline-flex items-center gap-2'>
+                  <span className='inline-flex items-center gap-2 cursor-pointer'>
                     <Loader2 className='h-4 w-4 animate-spin' />
                     Refreshing…
                   </span>
                 ) : (
-                  <span className='inline-flex items-center gap-2'>
+                  <span className='inline-flex items-center gap-2 cursor-pointer'>
                     <RefreshCw className='h-4 w-4' />
                     Refresh
                   </span>
@@ -1170,12 +1170,12 @@ export function IssueEditModal({
                   className='w-full justify-center'
                 >
                   {saving ? (
-                    <span className='inline-flex items-center gap-2'>
+                    <span className='inline-flex items-center gap-2 cursor-pointer'>
                       <Loader2 className='h-4 w-4 animate-spin' />
                       Saving…
                     </span>
                   ) : (
-                    <span className='inline-flex items-center gap-2'>
+                    <span className='inline-flex items-center gap-2 cursor-pointer'>
                       <Save className='h-4 w-4' />
                       Save Changes
                     </span>

@@ -590,12 +590,12 @@ export default function HomePage() {
                   className='whitespace-nowrap w-[150px] justify-center'
                 >
                   {loading ? (
-                    <span className='inline-flex items-center gap-2'>
+                    <span className='inline-flex items-center gap-2 cursor-pointer'>
                       <Loader2 className='h-4 w-4 animate-spin' />
                       Loading...
                     </span>
                   ) : (
-                    <span className='inline-flex items-center gap-2'>
+                    <span className='inline-flex items-center gap-2 cursor-pointer'>
                       <RefreshCw className='h-4 w-4' />
                       3. Load Issues
                     </span>
