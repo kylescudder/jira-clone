@@ -18,6 +18,20 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -32,7 +46,11 @@ import {
   Component,
   ChevronDown,
   RefreshCw,
-  Link as LinkIcon
+  Link as LinkIcon,
+  ChevronsUpDown,
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 import {
   Collapsible,
@@ -47,7 +65,10 @@ import {
   fetchIssueDetails,
   postIssueComment,
   editIssueComment,
-  deleteIssueComment
+  deleteIssueComment,
+  fetchProjectVersions,
+  updateIssueFixVersions,
+  fetchIssue
 } from '@/lib/client-api'
 import { getCachedData } from '@/lib/client-api'
 import {
@@ -282,8 +303,13 @@ export function IssueEditModal({
   const [selectedAssignee, setSelectedAssignee] = useState<string>('')
   const [hasChanges, setHasChanges] = useState(false)
   const [details, setDetails] = useState<JiraIssueDetails | null>(null)
+  const [projectVersions, setProjectVersions] = useState<
+    Array<{ id: string; name: string; released: boolean; archived?: boolean }>
+  >([])
+  const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(true)
+  const [freshIssue, setFreshIssue] = useState<JiraIssue | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [preview, setPreview] = useState<{
     url: string
@@ -296,13 +322,35 @@ export function IssueEditModal({
   const [commentSuccess, setCommentSuccess] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState(false)
   const [copiedIssueLink, setCopiedIssueLink] = useState(false)
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const [showReleased, setShowReleased] = useState(false)
 
   useEffect(() => {
     if (issue && isOpen) {
+      setFreshIssue(null)
       loadEditData()
       loadDetails()
+      // Load versions for this project and seed selection
+      ;(async () => {
+        try {
+          const cached = getCachedData<
+            Array<{
+              id: string
+              name: string
+              released: boolean
+              archived?: boolean
+            }>
+          >(`versions:${projectKey}`)
+          if (cached?.length) setProjectVersions(cached)
+          const versions = await fetchProjectVersions(projectKey)
+          setProjectVersions(versions)
+        } catch (e) {
+          // ignore
+        }
+      })()
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
       setSelectedTransition('')
+      setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
       setHasChanges(false)
     }
   }, [issue, isOpen])
@@ -311,7 +359,7 @@ export function IssueEditModal({
   useEffect(() => {
     setError(null)
     setSuccess(null)
-  }, [selectedTransition, selectedAssignee])
+  }, [selectedTransition, selectedAssignee, selectedVersionIds])
 
   // Clear comment messages when text changes
   useEffect(() => {
@@ -339,9 +387,14 @@ export function IssueEditModal({
     const currentAssignee = issue.assignee?.displayName || 'unassigned'
     const hasStatusChange = selectedTransition !== ''
     const hasAssigneeChange = selectedAssignee !== currentAssignee
+    const originalVersionIds = (issue.fixVersions || []).map((v) => v.id).sort()
+    const currentVersionIds = [...selectedVersionIds].sort()
+    const hasVersionChange =
+      originalVersionIds.length !== currentVersionIds.length ||
+      originalVersionIds.some((v, i) => v !== currentVersionIds[i])
 
-    setHasChanges(hasStatusChange || hasAssigneeChange)
-  }, [selectedTransition, selectedAssignee, issue])
+    setHasChanges(hasStatusChange || hasAssigneeChange || hasVersionChange)
+  }, [selectedTransition, selectedAssignee, selectedVersionIds, issue])
 
   const loadDetails = async () => {
     if (!issue) return
@@ -427,6 +480,20 @@ export function IssueEditModal({
     }
   }
 
+  const loadIssueBase = async () => {
+    if (!issue) return
+    try {
+      const updated = await fetchIssue(issue.key)
+      if (updated) {
+        setFreshIssue(updated)
+        setSelectedAssignee(updated.assignee?.displayName || 'unassigned')
+        setSelectedVersionIds((updated.fixVersions || []).map((v) => v.id))
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   const handleSave = async () => {
     if (!issue || !hasChanges) return
 
@@ -480,6 +547,31 @@ export function IssueEditModal({
         }
       }
 
+      // Update fix versions if changed
+      {
+        const originalVersionIds = (issue.fixVersions || [])
+          .map((v) => v.id)
+          .sort()
+        const currentVersionIds = [...selectedVersionIds].sort()
+        const changed =
+          originalVersionIds.length !== currentVersionIds.length ||
+          originalVersionIds.some((v, i) => v !== currentVersionIds[i])
+        if (changed) {
+          const ok = await updateIssueFixVersions(issue.key, selectedVersionIds)
+          if (ok) {
+            hasUpdates = true
+            const names =
+              projectVersions
+                .filter((v) => selectedVersionIds.includes(v.id))
+                .map((v) => v.name)
+                .join(', ') || 'No Release'
+            updates.push(`Fix versions updated: ${names}`)
+          } else {
+            throw new Error('Failed to update fix versions')
+          }
+        }
+      }
+
       if (hasUpdates) {
         setSuccess(updates.join(', '))
         onUpdate()
@@ -510,6 +602,7 @@ export function IssueEditModal({
     setHasChanges(false)
     if (issue) {
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
+      setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
     }
     onClose()
   }
@@ -533,7 +626,9 @@ export function IssueEditModal({
 
   if (!issue) return null
 
-  const normalizedStatus = normalizeStatusName(issue.status.name)
+  const displayIssue = freshIssue || issue
+
+  const normalizedStatus = normalizeStatusName(displayIssue.status.name)
 
   const jiraBase = process.env.JIRA_BASE_URL || ''
 
@@ -643,7 +738,7 @@ export function IssueEditModal({
                 </span>
               </button>
               <h2 className='text-foreground line-clamp-2 text-xl font-semibold'>
-                {issue.summary}
+                {displayIssue.summary}
               </h2>
             </div>
             <div className='flex items-center gap-2'></div>
@@ -690,7 +785,7 @@ export function IssueEditModal({
               </div>
 
               {/* Description */}
-              {issue.description && (
+              {displayIssue.description && (
                 <Card>
                   <CardHeader>
                     <CardTitle className='flex items-center gap-2 text-lg'>
@@ -704,8 +799,8 @@ export function IssueEditModal({
                         className='text-sm leading-relaxed'
                         dangerouslySetInnerHTML={{
                           __html:
-                            issue.descriptionHtml ||
-                            `<p>${(issue.description || '')
+                            displayIssue.descriptionHtml ||
+                            `<p>${(displayIssue.description || '')
                               .replace(/&/g, '&amp;')
                               .replace(/</g, '&lt;')
                               .replace(/>/g, '&gt;')
@@ -718,7 +813,7 @@ export function IssueEditModal({
               )}
 
               {/* Labels */}
-              {issue.labels.length > 0 && (
+              {displayIssue.labels.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className='flex items-center gap-2 text-lg'>
@@ -728,7 +823,7 @@ export function IssueEditModal({
                   </CardHeader>
                   <CardContent>
                     <div className='flex flex-wrap gap-2'>
-                      {issue.labels.map((label) => (
+                      {displayIssue.labels.map((label) => (
                         <Badge
                           key={label}
                           variant='secondary'
@@ -743,7 +838,7 @@ export function IssueEditModal({
               )}
 
               {/* Components */}
-              {issue.components.length > 0 && (
+              {displayIssue.components.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className='flex items-center gap-2 text-lg'>
@@ -753,7 +848,7 @@ export function IssueEditModal({
                   </CardHeader>
                   <CardContent>
                     <div className='flex flex-wrap gap-2'>
-                      {issue.components.map((component) => (
+                      {displayIssue.components.map((component) => (
                         <Badge
                           key={component.name}
                           variant='outline'
@@ -1040,7 +1135,15 @@ export function IssueEditModal({
                 size='sm'
                 variant='outline'
                 onClick={async () => {
-                  await Promise.all([loadDetails(), loadEditData()])
+                  await Promise.all([
+                    loadDetails(),
+                    loadEditData(),
+                    loadIssueBase()
+                  ])
+                  // also ask parent to refresh board data so other views stay in sync
+                  try {
+                    onUpdate()
+                  } catch {}
                 }}
                 disabled={detailsLoading || loading}
                 className='w-full justify-center'
@@ -1070,7 +1173,7 @@ export function IssueEditModal({
                   <div className='flex items-center gap-2'>
                     <Badge
                       variant='outline'
-                      className={`${getStatusColor(issue.status.name)} px-2 py-1 text-xs`}
+                      className={`${getStatusColor(displayIssue.status.name)} px-2 py-1 text-xs`}
                     >
                       {normalizedStatus}
                     </Badge>
@@ -1126,24 +1229,24 @@ export function IssueEditModal({
                 </CardHeader>
                 <CardContent className='space-y-3'>
                   <div className='flex items-center gap-2'>
-                    {issue.assignee ? (
+                    {displayIssue.assignee ? (
                       <>
                         <Avatar className='h-6 w-6'>
                           <AvatarImage
                             src={
-                              issue.assignee.avatarUrls['24x24'] ||
+                              displayIssue.assignee.avatarUrls['24x24'] ||
                               '/placeholder.svg'
                             }
                           />
                           <AvatarFallback className='text-xs'>
-                            {issue.assignee.displayName
+                            {displayIssue.assignee.displayName
                               .split(' ')
                               .map((n) => n[0])
                               .join('')}
                           </AvatarFallback>
                         </Avatar>
                         <span className='text-sm font-medium'>
-                          {issue.assignee.displayName}
+                          {displayIssue.assignee.displayName}
                         </span>
                       </>
                     ) : (
@@ -1184,6 +1287,167 @@ export function IssueEditModal({
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Fix Versions Section */}
+              <Card>
+                <CardHeader className='pb-3'>
+                  <CardTitle className='flex items-center gap-2 text-sm'>
+                    <Tag className='h-4 w-4' />
+                    Fix Versions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  {/* Current selection as badges */}
+                  <div className='flex flex-wrap gap-1'>
+                    {selectedVersionIds.length > 0 ? (
+                      projectVersions
+                        .filter((v) => selectedVersionIds.includes(v.id))
+                        .map((v) => (
+                          <Badge
+                            key={v.id}
+                            variant='secondary'
+                            className='text-xs'
+                          >
+                            {v.name}
+                          </Badge>
+                        ))
+                    ) : (
+                      <span className='text-muted-foreground text-sm'>
+                        No Release
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dropdown multi-select for versions */}
+                  {projectVersions.length === 0 ? (
+                    <div className='text-muted-foreground text-sm flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' /> Loading
+                      versions…
+                    </div>
+                  ) : (
+                    <div className='space-y-2'>
+                      <Popover
+                        open={versionsOpen}
+                        onOpenChange={setVersionsOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant='outline'
+                            role='combobox'
+                            aria-expanded={versionsOpen}
+                            className={`bg-background hover:bg-accent w-full justify-between ${selectedVersionIds.length === 0 ? 'text-muted-foreground' : ''}`}
+                          >
+                            <div className='flex items-center gap-2'>
+                              <Tag className='h-4 w-4 shrink-0' />
+                              {selectedVersionIds.length === 0
+                                ? 'Click to select version(s)...'
+                                : selectedVersionIds.length === 1
+                                  ? projectVersions.find(
+                                      (v) => v.id === selectedVersionIds[0]
+                                    )?.name || '1 selected'
+                                  : `${selectedVersionIds.length} versions selected`}
+                            </div>
+                            <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className='w-[400px] p-0' align='start'>
+                          <Command>
+                            <CommandInput
+                              placeholder='Search versions...'
+                              className='h-9'
+                            />
+
+                            {/* Visibility controls */}
+                            <div className='bg-muted/30 border-b px-3 py-2'>
+                              <div className='flex items-center justify-between'>
+                                <div className='text-muted-foreground text-xs font-medium'>
+                                  Showing{' '}
+                                  {
+                                    projectVersions.filter(
+                                      (v) =>
+                                        !v.archived &&
+                                        (showReleased || !v.released)
+                                    ).length
+                                  }{' '}
+                                  of{' '}
+                                  {
+                                    projectVersions.filter((v) => !v.archived)
+                                      .length
+                                  }{' '}
+                                  versions
+                                </div>
+                                <div className='flex items-center gap-2'>
+                                  <Checkbox
+                                    id='show-released'
+                                    checked={showReleased}
+                                    onCheckedChange={(checked) =>
+                                      setShowReleased(!!checked)
+                                    }
+                                  />
+                                  <Label
+                                    htmlFor='show-released'
+                                    className='flex cursor-pointer items-center gap-1 text-xs'
+                                  >
+                                    {showReleased ? (
+                                      <Eye className='h-3 w-3' />
+                                    ) : (
+                                      <EyeOff className='h-3 w-3' />
+                                    )}
+                                    Show released
+                                  </Label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <CommandList>
+                              <CommandEmpty>No versions found.</CommandEmpty>
+                              <CommandGroup>
+                                {projectVersions
+                                  .filter(
+                                    (v) =>
+                                      !v.archived &&
+                                      (showReleased || !v.released)
+                                  )
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map((v) => (
+                                    <CommandItem
+                                      key={v.id}
+                                      value={v.name}
+                                      onSelect={() => {
+                                        setSelectedVersionIds((prev) => {
+                                          const set = new Set(prev)
+                                          if (set.has(v.id)) set.delete(v.id)
+                                          else set.add(v.id)
+                                          return Array.from(set)
+                                        })
+                                      }}
+                                      className='flex items-center justify-between py-2'
+                                    >
+                                      <div className='flex min-w-0 flex-1 items-center gap-2'>
+                                        <Check
+                                          className={`${selectedVersionIds.includes(v.id) ? 'text-primary opacity-100' : 'opacity-0'} h-4 w-4 shrink-0`}
+                                        />
+                                        <span className='truncate font-medium'>
+                                          {v.name}
+                                        </span>
+                                      </div>
+                                      <Badge
+                                        variant='outline'
+                                        className={`ml-2 shrink-0 text-xs ${v.released ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200'}`}
+                                      >
+                                        {v.released ? 'released' : 'unreleased'}
+                                      </Badge>
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   )}
                 </CardContent>
@@ -1250,10 +1514,13 @@ export function IssueEditModal({
                 </CardHeader>
                 <CardContent>
                   <span className='text-sm'>
-                    {new Date(issue.created).toLocaleDateString(undefined, {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                    {new Date(displayIssue.created).toLocaleDateString(
+                      undefined,
+                      {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }
+                    )}
                   </span>
                 </CardContent>
               </Card>
@@ -1268,10 +1535,13 @@ export function IssueEditModal({
                 </CardHeader>
                 <CardContent>
                   <span className='text-sm'>
-                    {new Date(issue.updated).toLocaleDateString(undefined, {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                    {new Date(displayIssue.updated).toLocaleDateString(
+                      undefined,
+                      {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }
+                    )}
                   </span>
                 </CardContent>
               </Card>

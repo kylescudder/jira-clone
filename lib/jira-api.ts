@@ -1033,3 +1033,92 @@ export async function jiraFetchStream(endpoint: string, options?: RequestInit) {
 
   return response
 }
+
+export async function getProjectVersions(
+  projectKey: string
+): Promise<
+  Array<{ id: string; name: string; released: boolean; archived?: boolean }>
+> {
+  try {
+    const data = await jiraFetch(`/project/${projectKey}/versions`)
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray((data as any)?.values)
+        ? (data as any).values
+        : []
+    return list.map((v: any) => ({
+      id: String(v.id),
+      name: v.name,
+      released: Boolean(v.released),
+      archived: Boolean(v.archived)
+    }))
+  } catch (error) {
+    console.error('Error fetching project versions:', error)
+    return []
+  }
+}
+
+export async function updateIssueFixVersions(
+  issueKey: string,
+  versionIds: string[]
+): Promise<boolean> {
+  try {
+    await jiraFetch(`/issue/${issueKey}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        fields: {
+          fixVersions: (versionIds || []).map((id) => ({ id: String(id) }))
+        }
+      })
+    })
+    return true
+  } catch (error) {
+    console.error('Error updating issue fix versions:', error)
+    return false
+  }
+}
+
+export async function getIssue(issueKey: string): Promise<JiraIssue | null> {
+  try {
+    const data = await jiraFetch(`/issue/${issueKey}?fields=*all`)
+    if (!data) return null
+    const issue = data
+    return {
+      id: issue.id,
+      key: issue.key,
+      summary: issue.fields.summary,
+      description: extractTextFromADF(issue.fields.description),
+      descriptionHtml: adfToHtml(
+        issue.fields.description,
+        issue.fields.attachment,
+        issue.key
+      ),
+      status: issue.fields.status,
+      priority: issue.fields.priority,
+      assignee: issue.fields.assignee || undefined,
+      reporter: issue.fields.reporter,
+      issuetype: issue.fields.issuetype,
+      created: issue.fields.created,
+      updated: issue.fields.updated,
+      duedate: issue.fields.duedate || undefined,
+      labels: issue.fields.labels || [],
+      components: issue.fields.components || [],
+      sprint: issue.fields.customfield_10020
+        ? {
+            id: issue.fields.customfield_10020[0]?.id,
+            name: issue.fields.customfield_10020[0]?.name,
+            state: issue.fields.customfield_10020[0]?.state
+          }
+        : undefined,
+      fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
+        id: String(v.id),
+        name: v.name,
+        released: Boolean(v.released),
+        archived: Boolean(v.archived)
+      }))
+    }
+  } catch (error) {
+    console.error('Error fetching issue:', error)
+    return null
+  }
+}

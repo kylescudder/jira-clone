@@ -455,3 +455,76 @@ export function preloadIssues(
     void preloadIssueData(issue.key, projectKey)
   })
 }
+
+export async function fetchProjectVersions(
+  projectKey: string
+): Promise<
+  Array<{ id: string; name: string; released: boolean; archived?: boolean }>
+> {
+  try {
+    const response = await fetch(`/api/projects/${projectKey}/versions`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = (await response.json()) as Array<{
+      id: string
+      name: string
+      released: boolean
+      archived?: boolean
+    }>
+    setCachedData(`versions:${projectKey}`, data, 15 * 60 * 1000)
+    return data
+  } catch (error) {
+    console.error('Error fetching project versions:', error)
+    return (
+      getCachedData<
+        Array<{
+          id: string
+          name: string
+          released: boolean
+          archived?: boolean
+        }>
+      >(`versions:${projectKey}`) || []
+    )
+  }
+}
+
+export async function updateIssueFixVersions(
+  issueKey: string,
+  versionIds: string[]
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/fix-versions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ versionIds })
+    })
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Fix versions update failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('Error updating issue fix versions:', error)
+    return false
+  }
+}
+
+export async function fetchIssue(issueKey: string): Promise<JiraIssue | null> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = (await response.json()) as JiraIssue
+    setCachedData(`issue:${issueKey}`, data, 5 * 60 * 1000)
+    return data
+  } catch (error) {
+    console.error('Error fetching issue:', error)
+    return getCachedData<JiraIssue>(`issue:${issueKey}`) || null
+  }
+}
