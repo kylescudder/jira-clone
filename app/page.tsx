@@ -34,6 +34,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { KeyboardKey } from '@/components/ui/keyboard-key'
 import { Input } from '@/components/ui/input'
+import { LoadingTracker } from '@/components/loading-tracker'
+import type { TrackerStatus } from '@/components/loading-tracker'
 
 interface Sprint {
   id: string
@@ -103,6 +105,71 @@ export default function HomePage() {
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null)
+
+  // Loading tracker state
+  const [trackerVisible, setTrackerVisible] = useState(false)
+  const [trackerCurrent, setTrackerCurrent] = useState(0)
+  const [trackerTotal, setTrackerTotal] = useState(0)
+  const [trackerMessage, setTrackerMessage] = useState<string>('')
+  const [trackerStatus, setTrackerStatus] = useState<TrackerStatus>('loading')
+  // Delay timer so fast operations (<1s) never show the tracker
+  const TRACKER_SHOW_DELAY_MS = 1000
+  const trackerDelayTimeoutRef = useRef<number | null>(null)
+
+  const openTracker = (total: number, message: string) => {
+    // Clear any pending timers and hide immediately
+    if (trackerDelayTimeoutRef.current != null) {
+      clearTimeout(trackerDelayTimeoutRef.current)
+      trackerDelayTimeoutRef.current = null
+    }
+    setTrackerVisible(false)
+
+    setTrackerTotal(total)
+    setTrackerCurrent(0)
+    setTrackerMessage(message)
+    setTrackerStatus('loading')
+
+    // Only show after delay to prevent flicker
+    trackerDelayTimeoutRef.current = window.setTimeout(() => {
+      setTrackerVisible(true)
+      trackerDelayTimeoutRef.current = null
+    }, TRACKER_SHOW_DELAY_MS)
+  }
+  const advanceTracker = (message?: string) => {
+    setTrackerCurrent((c) => Math.min(trackerTotal, c + 1))
+    if (message) setTrackerMessage(message)
+  }
+  const finishTracker = (successMessage: string) => {
+    setTrackerCurrent(trackerTotal)
+    setTrackerMessage(successMessage)
+    setTrackerStatus('success')
+    // If not yet visible (i.e., finished before delay), cancel showing entirely
+    if (!trackerVisible && trackerDelayTimeoutRef.current != null) {
+      clearTimeout(trackerDelayTimeoutRef.current)
+      trackerDelayTimeoutRef.current = null
+      // keep it hidden; do not flash success
+    }
+  }
+  const failTracker = (errorMessage: string) => {
+    setTrackerMessage(errorMessage)
+    setTrackerStatus('error')
+    // If not yet visible (i.e., finished before delay), cancel showing entirely
+    if (!trackerVisible && trackerDelayTimeoutRef.current != null) {
+      clearTimeout(trackerDelayTimeoutRef.current)
+      trackerDelayTimeoutRef.current = null
+      // keep it hidden; do not flash error
+    }
+  }
+
+  // Clear pending show-delay timer on unmount to avoid leaks
+  useEffect(() => {
+    return () => {
+      if (trackerDelayTimeoutRef.current != null) {
+        clearTimeout(trackerDelayTimeoutRef.current)
+        trackerDelayTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   // Load all saved states and cached data from localStorage on mount
   useEffect(() => {
@@ -264,27 +331,31 @@ export default function HomePage() {
         setLoadingMessage('Loading projects...')
         setError(null)
 
+        openTracker(2, 'Loading projects...')
         const projectsData = await fetchProjects()
         setProjects(projectsData)
+        advanceTracker('Loading user information...')
 
-        setLoadingMessage('Loading user information...')
         const user = await fetchCurrentUser()
         setCurrentUser(user)
+        finishTracker('App data loaded')
 
-        // If we have a saved project, load its sprints
+        // If we have a saved project, set it (sprints will be loaded by the selectedProject effect)
         const savedProject = localStorage.getItem(STORAGE_KEYS.SELECTED_PROJECT)
         const projectToLoad = savedProject || 'MP5'
         const project = projectsData.find((p) => p.key === projectToLoad)
 
         if (project) {
-          setSelectedProject(project.key)
-          await loadSprintsForProject(project.key)
+          // Avoid redundant state churn if already set by hydration effect
+          setSelectedProject((prev) => prev || project.key)
+          // Do not call loadSprintsForProject here; let the selectedProject effect handle it
         }
       } catch (err) {
         setError(
           'Failed to load data from Jira. Please check your configuration.'
         )
         console.error('Error initializing app:', err)
+        failTracker('Failed to load initial data')
       } finally {
         setLoading(false)
         setLoadingMessage('')
@@ -296,18 +367,21 @@ export default function HomePage() {
 
   // Load sprints when project changes
   useEffect(() => {
-    if (selectedProject && projects.length > 0) {
+    if (selectedProject) {
       loadSprintsForProject(selectedProject)
     }
-  }, [selectedProject, projects])
+  }, [selectedProject])
 
-  // Auto-load issues when sprints are restored from localStorage
+  // Auto-load issues when sprints are restored from localStorage (only once)
+  const hasAutoLoadedIssues = useRef(false)
   useEffect(() => {
+    if (hasAutoLoadedIssues.current) return
     const savedSprints = localStorage.getItem(STORAGE_KEYS.SELECTED_SPRINTS)
     if (savedSprints && selectedProject && sprints.length > 0) {
       try {
         const parsedSprints = JSON.parse(savedSprints)
-        if (parsedSprints.length > 0) {
+        if (Array.isArray(parsedSprints) && parsedSprints.length > 0) {
+          hasAutoLoadedIssues.current = true
           // Auto-load issues for saved sprints
           loadIssues(parsedSprints)
         }
@@ -326,6 +400,7 @@ export default function HomePage() {
       setLoadingMessage('Loading sprints...')
       console.log(`Loading sprints for project: ${projectKey}`)
 
+      openTracker(1, 'Loading sprints...')
       const sprintsData = await fetchProjectSprints(projectKey)
       console.log(
         `Loaded ${sprintsData.length} sprints for project ${projectKey}:`,
@@ -333,6 +408,9 @@ export default function HomePage() {
       )
 
       setSprints(sprintsData)
+      finishTracker(
+        `Loaded ${sprintsData.length} sprint${sprintsData.length === 1 ? '' : 's'}`
+      )
 
       // Clear selected sprints if they don't exist in the new project
       const validSprints = selectedSprints.filter((sprintName) =>
@@ -349,6 +427,7 @@ export default function HomePage() {
       setError(
         `Failed to load sprints for project ${projectKey}. Check console for details.`
       )
+      failTracker('Failed to load sprints')
     }
   }
 
@@ -367,6 +446,11 @@ export default function HomePage() {
       )
       setError(null)
 
+      openTracker(
+        1,
+        `Loading issues for ${sprintsForQuery.length} sprint(s)...`
+      )
+
       // Hydrate from cache immediately while fetching
       try {
         const params = new URLSearchParams({ project: selectedProject })
@@ -383,10 +467,15 @@ export default function HomePage() {
         sprint: sprintsForQuery
       })
       setIssues(baseIssues)
+      // Notify user when data loads successfully via custom tracker
+      finishTracker(
+        `Loaded ${baseIssues.length} issue${baseIssues.length === 1 ? '' : 's'}`
+      )
     } catch (err) {
       setError('Failed to load issues from Jira.')
       // Do not clear here, we may already be showing cached data
       console.error('Error loading issues:', err)
+      failTracker('Failed to load issues from Jira')
     } finally {
       setLoading(false)
       setLoadingMessage('')
@@ -498,9 +587,9 @@ export default function HomePage() {
 
   return (
     <div className='bg-background h-screen w-full flex flex-col overflow-hidden'>
-      <div className='bg-background border-border space-y-4 border-b p-4 sticky top-0 z-20 shrink-0'>
+      <div className='bg-background border-border space-y-4 border-b p-4'>
         {/* Header Row */}
-        <div className='flex items-center justify-between'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex items-center gap-4'>
             <h1 className='text-foreground text-2xl font-bold'>
               Project Board
@@ -514,14 +603,14 @@ export default function HomePage() {
               <div className='flex items-center gap-2 text-sm'>
                 <Badge
                   variant='secondary'
-                  className='bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  className='bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-3 py-1'
                 >
                   {activeFutureSprints} active/future
                 </Badge>
                 {closedSprints > 0 && (
                   <Badge
                     variant='secondary'
-                    className='bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                    className='bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 px-3 py-1'
                   >
                     <Archive className='mr-1 h-3 w-3' />
                     {closedSprints} closed
@@ -556,8 +645,8 @@ export default function HomePage() {
               </div>
             )}
           </div>
-          <div className='flex items-center gap-4'>
-            <div className='w-[280px]'>
+          <div className='flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto'>
+            <div className='w-full sm:w-[280px]'>
               <Input
                 ref={searchInputRef}
                 type='text'
@@ -595,7 +684,7 @@ export default function HomePage() {
                   </Label>
                   <select
                     id='project-select'
-                    className='border-input bg-background text-foreground focus:ring-ring min-w-[200px] rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
+                    className='border-input bg-background text-foreground focus:ring-ring w-full sm:w-auto sm:min-w-[200px] rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
                     value={selectedProject}
                     onChange={(e) => handleProjectChange(e.target.value)}
                     disabled={loading}
@@ -631,7 +720,7 @@ export default function HomePage() {
                   onClick={handleLoadIssues}
                   size='default'
                   disabled={loading || !canLoadIssues}
-                  className='whitespace-nowrap w-[150px] justify-center'
+                  className='whitespace-nowrap w-full sm:w-[150px] justify-center'
                 >
                   {loading ? (
                     <span className='inline-flex items-center gap-2 cursor-pointer'>
@@ -716,6 +805,15 @@ export default function HomePage() {
           />
         </div>
       </div>
+
+      <LoadingTracker
+        visible={trackerVisible}
+        current={trackerCurrent}
+        total={trackerTotal}
+        message={trackerMessage}
+        status={trackerStatus}
+        onClose={() => setTrackerVisible(false)}
+      />
     </div>
   )
 }

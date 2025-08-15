@@ -566,7 +566,6 @@ export async function getProjectSprints(
       acc[sprint.state] = (acc[sprint.state] || 0) + 1
       return acc
     }, {})
-    console.log(`Sprint breakdown:`, sprintsByState)
 
     return sprints
   } catch (error) {

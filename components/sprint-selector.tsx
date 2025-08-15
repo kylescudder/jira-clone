@@ -201,7 +201,7 @@ export function SprintSelector({
             role='combobox'
             aria-expanded={open}
             className={cn(
-              'bg-background hover:bg-accent w-[280px] justify-between',
+              'bg-background hover:bg-accent w-full sm:w-[280px] justify-between',
               selectedSprints.length === 0 && 'text-muted-foreground'
             )}
             disabled={disabled}
@@ -217,7 +217,7 @@ export function SprintSelector({
             <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className='w-[400px] p-0' align='start'>
+        <PopoverContent className='w-[90vw] sm:w-[400px] p-0' align='start'>
           <Command>
             <CommandInput placeholder='Search sprints...' className='h-9' />
 
@@ -324,7 +324,7 @@ export function SprintSelector({
 
       {/* Selected sprint badges */}
       {selectedSprintObjects.length > 0 && (
-        <div className='flex max-w-[500px] flex-wrap gap-1'>
+        <div className='flex max-w-full sm:max-w-[500px] flex-wrap gap-1'>
           {selectedSprintObjects.map((sprint) => (
             <Badge
               key={sprint.id}

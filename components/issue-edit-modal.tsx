@@ -634,7 +634,7 @@ export function IssueEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='max-h-[90vh] max-w-6xl p-0'>
+      <DialogContent className='max-h-[90vh] w-[95vw] sm:w-auto sm:max-w-6xl p-0 overflow-hidden'>
         <DialogHeader className='bg-muted/50 border-b px-6 py-4'>
           <DialogTitle className='flex items-center justify-between'>
             <div className='flex items-center gap-3 group'>
@@ -1354,7 +1354,10 @@ export function IssueEditModal({
                             <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className='w-[400px] p-0' align='start'>
+                        <PopoverContent
+                          className='w-[90vw] sm:w-[400px] p-0'
+                          align='start'
+                        >
                           <Command>
                             <CommandInput
                               placeholder='Search versions...'
@@ -1575,7 +1578,7 @@ export function IssueEditModal({
             open={!!preview}
             onOpenChange={(open) => !open && setPreview(null)}
           >
-            <DialogContent className='max-w-[95vw] w-[95vw] p-0'>
+            <DialogContent className='max-w-[95vw] w-[95vw] max-h-[90vh] p-0 overflow-hidden'>
               <DialogHeader className='bg-muted/50 border-b px-3 py-2'>
                 <DialogTitle
                   className='flex items-center justify-between text-sm font-medium truncate'

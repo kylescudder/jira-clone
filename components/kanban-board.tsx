@@ -273,17 +273,14 @@ export function KanbanBoard({
         onToggle={onToggleFilterSidebar}
       />
 
-      <div className='flex-1 overflow-hidden p-4'>
+      <div className='flex-1 overflow-hidden p-2 sm:p-4'>
         {/* Horizontal scrolling container */}
-        <div className='h-full overflow-x-auto overflow-y-hidden'>
-          <div
-            className='flex h-full gap-4'
-            style={{ minWidth: `${columns.length * 280}px` }}
-          >
+        <div className='h-full overflow-x-auto overflow-y-auto'>
+          <div className='flex h-full gap-4 flex-row'>
             {columns.map((column) => (
               <Card
                 key={column.id}
-                className={`flex h-full w-[270px] shrink-0 flex-col ${getColumnColor(column.title)}`}
+                className={`flex sm:h-full w-full sm:w-[270px] min-w-full sm:min-w-[270px] shrink-0 flex-col ${getColumnColor(column.title)}`}
               >
                 <CardHeader className='shrink-0 pb-3'>
                   <CardTitle className='flex items-center justify-between'>
