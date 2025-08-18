@@ -9,7 +9,11 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Jira Clone',
   description: 'A Jira clone with Kanban board and advanced filtering',
-  generator: 'v0.dev'
+  generator: 'v0.dev',
+  icons: {
+    icon: [{ url: '/favicon.ico' }],
+    apple: [{ url: '/apple-icon.png' }]
+  }
 }
 
 export default function RootLayout({
