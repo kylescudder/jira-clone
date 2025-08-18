@@ -52,7 +52,7 @@
     "next": "15.4.6",
     "next-themes": "latest",
     "react": "19",
-    "react-day-picker": "9.8.1",
+    "react-day-picker": "9.9.0",
     "react-dom": "19",
     "react-hook-form": "7.62.0",
     "react-resizable-panels": "3.0.4",
