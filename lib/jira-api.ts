@@ -242,6 +242,18 @@ function extractTextFromADF(adfContent: any): string {
         return `> ${extractText({ content: node.content })}\n\n`
       case 'hardBreak':
         return '\n'
+      case 'table': {
+        const rows = (node.content || []).map((row: any) => extractText(row))
+        return rows.join('\n') + '\n\n'
+      }
+      case 'tableRow': {
+        const cells = (node.content || []).map((cell: any) => extractText(cell))
+        return cells.join('\t')
+      }
+      case 'tableHeader':
+      case 'tableHeaderCell':
+      case 'tableCell':
+        return extractText({ content: node.content })
       default:
         // For unknown types, try to extract content if it exists
         if (node.content) {
@@ -280,10 +292,20 @@ export function adfToHtml(
   attachments?: Array<{ id: string; filename: string; content?: string }>,
   issueKey?: string
 ): string {
-  if (!adf) return ''
+  if (adf == null) return ''
 
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // If the input is a plain string (legacy/plain text), escape and preserve newlines
+  if (typeof adf === 'string') {
+    const safe = esc(adf)
+    // Convert consecutive blank lines to separate paragraphs
+    const parts = safe
+      .split(/\n{2,}/)
+      .map((block) => block.replace(/\n/g, '<br />'))
+    return parts.map((p) => `<p>${p}</p>`).join('')
+  }
 
   const renderMarks = (text: string, marks?: any[]) => {
     if (!marks || !Array.isArray(marks) || marks.length === 0) return esc(text)
@@ -344,7 +366,27 @@ export function adfToHtml(
       case 'doc':
         return renderChildren(node)
       case 'paragraph': {
-        const inner = renderChildren(node)
+        // If this paragraph contains block-level nodes (e.g., tables or lists),
+        // do not wrap them in <p> to avoid invalid HTML and broken layout.
+        const hasBlockChild =
+          Array.isArray(node.content) &&
+          node.content.some((c: any) => {
+            const t = c?.type
+            return (
+              t === 'table' ||
+              t === 'bulletList' ||
+              t === 'orderedList' ||
+              t === 'heading' ||
+              t === 'codeBlock' ||
+              t === 'blockquote' ||
+              t === 'mediaSingle' ||
+              t === 'mediaGroup'
+            )
+          })
+        const inner = (node.content || [])
+          .map((c: any) => renderNode(c))
+          .join('')
+        if (hasBlockChild) return inner || ''
         // If paragraph is empty, render an empty line to keep spacing
         return `<p>${inner || '<br />'}</p>`
       }
@@ -365,6 +407,37 @@ export function adfToHtml(
       case 'codeBlock': {
         const code = renderChildren(node)
         return `<pre><code>${code}</code></pre>`
+      }
+      // Tables
+      case 'table': {
+        const inner = (node.content || [])
+          .map((row: any) => renderNode(row))
+          .join('')
+        // Use class-based styling for better light/dark contrast
+        return `<table class="adf-table" style="width: 100%; margin: 0.5rem 0;">${inner}</table>`
+      }
+      case 'tableRow': {
+        const cells = (node.content || [])
+          .map((cell: any) => renderNode(cell))
+          .join('')
+        return `<tr>${cells}</tr>`
+      }
+      case 'tableHeader':
+      case 'tableHeaderCell': // some exporters use this name
+      case 'tableCell': {
+        const tag =
+          node.type === 'tableHeader' || node.type === 'tableHeaderCell'
+            ? 'th'
+            : 'td'
+        const inner = renderChildren(node)
+        const align = node.attrs?.colspan
+          ? ` colspan="${Number(node.attrs.colspan)}"`
+          : ''
+        const rowspan = node.attrs?.rowspan
+          ? ` rowspan="${Number(node.attrs.rowspan)}"`
+          : ''
+        const cls = tag === 'th' ? 'adf-th' : 'adf-td'
+        return `<${tag}${align}${rowspan} class="${cls}" style="padding: 6px 8px; vertical-align: top;">${inner}</${tag}>`
       }
       // Render media containers
       case 'mediaSingle': {

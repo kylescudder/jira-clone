@@ -634,7 +634,7 @@ export function IssueEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='max-h-[90vh] w-[95vw] sm:w-auto sm:max-w-6xl p-0 overflow-hidden'>
+      <DialogContent className='max-h-[90vh] w-[96vw] sm:w-auto sm:max-w-7xl lg:max-w-[90rem] p-0 rounded-2xl overflow-hidden'>
         <DialogHeader className='bg-muted/50 border-b px-6 py-4'>
           <DialogTitle className='flex items-center justify-between'>
             <div className='flex items-center gap-3 group'>
@@ -794,7 +794,7 @@ export function IssueEditModal({
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className='prose prose-sm dark:prose-invert max-w-none'>
+                    <div className='jira-description prose prose-sm dark:prose-invert max-w-none'>
                       <div
                         className='text-sm leading-relaxed'
                         dangerouslySetInnerHTML={{

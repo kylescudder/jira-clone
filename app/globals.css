@@ -144,3 +144,73 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Enhanced styling for ADF-rendered tables (Jira descriptions/comments) */
+@layer components {
+  :root {
+    /* Stronger contrast for borders in light mode */
+    --adf-table-border: rgba(0, 0, 0, 0.45);
+    --adf-table-header-bg: rgba(0, 0, 0, 0.06);
+  }
+  .dark {
+    /* Stronger contrast for borders in dark mode */
+    --adf-table-border: rgba(255, 255, 255, 0.45);
+    --adf-table-header-bg: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Base table appearance */
+  .adf-table {
+    width: 100%;
+    table-layout: auto;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  /* Ensure borders are clearly visible on cells (higher specificity wins in prose) */
+  .adf-table th,
+  .adf-table td,
+  .adf-th,
+  .adf-td,
+  .prose .adf-table th,
+  .prose .adf-table td {
+    border: 1.5px solid var(--adf-table-border) !important;
+  }
+
+  /* Header emphasis */
+  .adf-th,
+  .adf-table th,
+  .prose .adf-table th {
+    background-color: var(--adf-table-header-bg) !important;
+    font-weight: 600;
+  }
+}
+
+/* Scoped tweak: corner radii applied to specific cells in issue description tables */
+@layer components {
+  /* Use separate border model so per-cell radii render correctly */
+  .jira-description .adf-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 0; /* remove global rounding */
+    overflow: visible; /* allow cell radii to be visible */
+  }
+
+  /* Top-left: first header cell in first row */
+  .jira-description .adf-table tr:first-child th:first-child {
+    border-top-left-radius: var(--radius-md);
+  }
+  /* Top-right: last header cell in first row */
+  .jira-description .adf-table tr:first-child th:last-child {
+    border-top-right-radius: var(--radius-md);
+  }
+  /* Bottom-left: first cell of last row (handle td or th just in case) */
+  .jira-description .adf-table tr:last-child td:first-child,
+  .jira-description .adf-table tr:last-child th:first-child {
+    border-bottom-left-radius: var(--radius-md);
+  }
+  /* Bottom-right: last cell of last row (handle td or th) */
+  .jira-description .adf-table tr:last-child td:last-child,
+  .jira-description .adf-table tr:last-child th:last-child {
+    border-bottom-right-radius: var(--radius-md);
+  }
+}
