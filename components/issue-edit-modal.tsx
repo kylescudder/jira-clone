@@ -274,7 +274,7 @@ export function IssueEditModal({
             </div>
           ) : (
             <div
-              className='mt-1 text-sm prose prose-invert max-w-none'
+              className='mt-1 text-sm jira-description prose prose-invert max-w-none'
               dangerouslySetInnerHTML={{
                 __html:
                   comment.bodyHtml ||
@@ -808,6 +808,62 @@ export function IssueEditModal({
                         }}
                       />
                     </div>
+                    <style jsx>{`
+                      .jira-description {
+                        --adf-table-border: rgba(0, 0, 0, 0.45);
+                        --adf-table-header-bg: rgba(0, 0, 0, 0.06);
+                      }
+                      :global(.dark) .jira-description {
+                        --adf-table-border: rgba(255, 255, 255, 0.45);
+                        --adf-table-header-bg: rgba(255, 255, 255, 0.1);
+                      }
+                      .jira-description :global(.adf-table) {
+                        width: 100%;
+                        table-layout: auto;
+                        border-radius: var(--radius-sm);
+                        overflow: hidden;
+                      }
+                      .jira-description :global(.adf-table th),
+                      .jira-description :global(.adf-table td),
+                      .jira-description :global(.adf-th),
+                      .jira-description :global(.adf-td),
+                      .jira-description :global(.prose .adf-table th),
+                      .jira-description :global(.prose .adf-table td) {
+                        border: 1.5px solid var(--adf-table-border) !important;
+                      }
+                      .jira-description :global(.adf-th),
+                      .jira-description :global(.adf-table th),
+                      .jira-description :global(.prose .adf-table th) {
+                        background-color: var(--adf-table-header-bg) !important;
+                        font-weight: 600;
+                      }
+                      .jira-description :global(.adf-table) {
+                        border-collapse: separate;
+                        border-spacing: 0;
+                        border-radius: 0;
+                        overflow: visible;
+                      }
+                      .jira-description
+                        :global(.adf-table tr:first-child th:first-child) {
+                        border-top-left-radius: var(--radius-md);
+                      }
+                      .jira-description
+                        :global(.adf-table tr:first-child th:last-child) {
+                        border-top-right-radius: var(--radius-md);
+                      }
+                      .jira-description
+                        :global(.adf-table tr:last-child td:first-child),
+                      .jira-description
+                        :global(.adf-table tr:last-child th:first-child) {
+                        border-bottom-left-radius: var(--radius-md);
+                      }
+                      .jira-description
+                        :global(.adf-table tr:last-child td:last-child),
+                      .jira-description
+                        :global(.adf-table tr:last-child th:last-child) {
+                        border-bottom-right-radius: var(--radius-md);
+                      }
+                    `}</style>
                   </CardContent>
                 </Card>
               )}
