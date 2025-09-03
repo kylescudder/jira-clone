@@ -1135,11 +1135,7 @@ export function IssueEditModal({
                 size='sm'
                 variant='outline'
                 onClick={async () => {
-                  await Promise.all([
-                    loadDetails(),
-                    loadEditData(),
-                    loadIssueBase()
-                  ])
+                  await Promise.all([loadDetails(), loadIssueBase()])
                   // also ask parent to refresh board data so other views stay in sync
                   try {
                     onUpdate()

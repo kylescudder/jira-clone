@@ -20,7 +20,8 @@ import {
   fetchProjectSprints,
   getCachedData,
   preloadIssueData,
-  preloadIssues
+  preloadIssues,
+  fetchIssueDetails
 } from '@/lib/client-api'
 import type {
   JiraIssue,
@@ -522,6 +523,16 @@ export default function HomePage() {
         sprint: selectedSprints
       })
       setIssues(baseIssues)
+
+      // Also refresh the selected issue's details (comments and history)
+      if (selectedIssue) {
+        try {
+          await fetchIssueDetails(selectedIssue.key)
+        } catch (e) {
+          // Best-effort: ignore errors here to avoid breaking UI refresh
+          console.warn('Failed to refresh issue details during update:', e)
+        }
+      }
     }
   }
 
