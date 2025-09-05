@@ -280,7 +280,7 @@ export function KanbanBoard({
             {columns.map((column) => (
               <Card
                 key={column.id}
-                className={`flex sm:h-full w-full sm:w-[270px] min-w-full sm:min-w-[270px] shrink-0 flex-col ${getColumnColor(column.title)}`}
+                className={`flex sm:h-full w-full md:w-[320px] lg:w-[360px] xl:w-[380px] 2xl:w-[420px] min-w-full md:min-w-[320px] lg:min-w-[360px] xl:min-w-[380px] 2xl:min-w-[420px] shrink-0 flex-col ${getColumnColor(column.title)}`}
               >
                 <CardHeader className='shrink-0 pb-3'>
                   <CardTitle className='flex items-center justify-between'>
