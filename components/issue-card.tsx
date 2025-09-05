@@ -1,6 +1,7 @@
 'use client'
 
-import { CalendarDays, Clock, User } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarDays, Clock, User, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -54,6 +55,7 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
   }
 
   const isOverdue = issue.duedate && new Date(issue.duedate) < new Date()
+  const [copiedId, setCopiedId] = useState(false)
 
   return (
     <Card
@@ -67,9 +69,46 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
         <div className='flex items-center justify-between gap-2'>
           <Badge
             variant='secondary'
-            className='shrink-0 font-mono text-xs font-semibold'
+            className={`relative shrink-0 font-mono text-xs font-semibold cursor-pointer select-none transition-transform active:scale-95 ${copiedId ? 'ring-2 ring-green-400/60 ring-offset-2 ring-offset-background' : ''}`}
+            title='Click to copy issue key'
+            role='button'
+            aria-label='Copy issue key to clipboard'
+            onClick={async (e) => {
+              e.stopPropagation()
+              let ok = false
+              try {
+                await navigator.clipboard.writeText(issue.key)
+                ok = true
+              } catch (err) {
+                try {
+                  const el = document.createElement('input')
+                  el.value = issue.key
+                  document.body.appendChild(el)
+                  el.select()
+                  document.execCommand('copy')
+                  document.body.removeChild(el)
+                  ok = true
+                } catch {}
+              }
+              if (ok) {
+                setCopiedId(true)
+                setTimeout(() => setCopiedId(false), 1200)
+              }
+            }}
           >
-            {issue.key}
+            <span className='inline-flex items-center gap-2'>
+              {copiedId ? (
+                <>
+                  <CheckCircle className='h-3.5 w-3.5 text-green-600' />
+                  Copied!
+                </>
+              ) : (
+                <>{issue.key}</>
+              )}
+            </span>
+            <span className='sr-only' aria-live='polite'>
+              {copiedId ? 'Issue key copied to clipboard' : ''}
+            </span>
           </Badge>
           <Badge
             variant='outline'

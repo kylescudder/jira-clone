@@ -634,7 +634,7 @@ export function IssueEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='max-h-[90vh] w-[96vw] sm:w-auto sm:max-w-7xl lg:max-w-[90rem] p-0 rounded-2xl overflow-hidden'>
+      <DialogContent className='max-h-[90vh] max-w-[98vw] w-[98vw]! sm:w-auto sm:max-w-[110rem] p-0 rounded-2xl overflow-hidden'>
         <DialogHeader className='bg-muted/50 border-b px-6 py-4'>
           <DialogTitle className='flex items-center justify-between'>
             <div className='flex items-center gap-3 group'>
@@ -1230,7 +1230,7 @@ export function IssueEditModal({
                       {normalizedStatus}
                     </Badge>
                   </div>
-                  {loading ? (
+                  {transitions.length === 0 && loading ? (
                     <div className='text-muted-foreground flex items-center gap-2'>
                       <Loader2 className='h-4 w-4 animate-spin' />
                       Loading transitions...
@@ -1246,6 +1246,7 @@ export function IssueEditModal({
                       <Select
                         value={selectedTransition}
                         onValueChange={setSelectedTransition}
+                        disabled={loading && transitions.length === 0}
                       >
                         <SelectTrigger className='h-8 text-sm'>
                           <SelectValue placeholder='Select new status' />
@@ -1256,7 +1257,6 @@ export function IssueEditModal({
                               key={transition.id}
                               value={transition.id}
                             >
-                              {' '}
                               <span
                                 className={`inline-block rounded border px-2 py-0.5 text-xs ${getStatusColor(transition.name)}`}
                               >
@@ -1307,7 +1307,7 @@ export function IssueEditModal({
                       </span>
                     )}
                   </div>
-                  {loading ? (
+                  {projectUsers.length === 0 && loading ? (
                     <div className='text-muted-foreground flex items-center gap-2'>
                       <Loader2 className='h-4 w-4 animate-spin' />
                       Loading users...
@@ -1323,6 +1323,7 @@ export function IssueEditModal({
                       <Select
                         value={selectedAssignee}
                         onValueChange={setSelectedAssignee}
+                        disabled={loading && projectUsers.length === 0}
                       >
                         <SelectTrigger className='h-8 text-sm'>
                           <SelectValue placeholder='Select assignee' />

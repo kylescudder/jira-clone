@@ -693,20 +693,22 @@ export default function HomePage() {
                   >
                     1. Project:
                   </Label>
-                  <select
-                    id='project-select'
-                    className='border-input bg-background text-foreground focus:ring-ring w-full sm:w-auto sm:min-w-[200px] rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
-                    value={selectedProject}
-                    onChange={(e) => handleProjectChange(e.target.value)}
-                    disabled={loading}
-                  >
-                    <option value=''>Select a project</option>
-                    {projects.map((project) => (
-                      <option key={project.key} value={project.key}>
-                        {project.name} ({project.key})
-                      </option>
-                    ))}
-                  </select>
+                  <div className='min-w-0 max-w-full'>
+                    <select
+                      id='project-select'
+                      className='border-input bg-background text-foreground focus:ring-ring w-full sm:w-auto sm:max-w-[50vw] md:max-w-[320px] lg:max-w-[420px] truncate rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
+                      value={selectedProject}
+                      onChange={(e) => handleProjectChange(e.target.value)}
+                      disabled={loading}
+                    >
+                      <option value=''>Select a project</option>
+                      {projects.map((project) => (
+                        <option key={project.key} value={project.key}>
+                          {project.name} ({project.key})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
