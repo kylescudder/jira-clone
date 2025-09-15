@@ -653,7 +653,7 @@ export async function getProjectSprints(
       const allIssues = await fetchAllPaginated(async (startAt, maxResults) => {
         const jql = `project = ${projectKey} AND sprint is not EMPTY`
         const data = await jiraFetch(
-          `/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=customfield_10020`
+          `/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=customfield_10020`
         )
         return data || { values: [], total: 0 }
       }, 100)
@@ -996,7 +996,7 @@ export async function getIssues(
       )
 
       const data = await jiraFetch(
-        `/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=*all`
+        `/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=*all`
       )
 
       if (!data || !data.issues) {
