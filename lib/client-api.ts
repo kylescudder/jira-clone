@@ -528,3 +528,74 @@ export async function fetchIssue(issueKey: string): Promise<JiraIssue | null> {
     return getCachedData<JiraIssue>(`issue:${issueKey}`) || null
   }
 }
+
+export async function fetchProjectComponents(
+  projectKey: string
+): Promise<Array<{ id: string; name: string }>> {
+  try {
+    const response = await fetch(`/api/projects/${projectKey}/components`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = (await response.json()) as Array<{ id: string; name: string }>
+    setCachedData(`components:${projectKey}`, data, 60 * 60 * 1000)
+    return data
+  } catch (error) {
+    console.error('Error fetching project components:', error)
+    return (
+      getCachedData<Array<{ id: string; name: string }>>(
+        `components:${projectKey}`
+      ) || []
+    )
+  }
+}
+
+export async function createIssueClient(params: {
+  projectKey: string
+  title: string
+  description: string
+  assigneeAccountId: string | null
+  componentId: string
+  linkIssueKey?: string
+  linkType?: string
+}): Promise<{ key: string } | null> {
+  try {
+    const response = await fetch(`/api/issues`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    })
+    if (!response.ok) {
+      const text = await response.text()
+      console.error('Create issue failed', response.status, text)
+      return null
+    }
+    const data = (await response.json()) as { key: string }
+    return data
+  } catch (error) {
+    console.error('Error creating issue:', error)
+    return null
+  }
+}
+
+export async function fetchIssueSuggestions(
+  projectKey: string,
+  query: string
+): Promise<Array<{ key: string; summary: string }>> {
+  try {
+    if (!projectKey || (query || '').trim().length < 6) return []
+    const params = new URLSearchParams({ project: projectKey, query })
+    const cacheKey = `suggest:${projectKey}:${query}`
+    const cached =
+      getCachedData<Array<{ key: string; summary: string }>>(cacheKey)
+    if (cached) return cached
+    const res = await fetch(`/api/issues/picker?${params.toString()}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = (await res.json()) as Array<{ key: string; summary: string }>
+    setCachedData(cacheKey, data, 60 * 1000) // short TTL 1 minute
+    return data
+  } catch (e) {
+    console.warn('fetchIssueSuggestions error', e)
+    return []
+  }
+}

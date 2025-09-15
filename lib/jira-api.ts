@@ -1231,3 +1231,163 @@ export async function getIssue(issueKey: string): Promise<JiraIssue | null> {
     return null
   }
 }
+
+export async function getProjectComponents(
+  projectKey: string
+): Promise<Array<{ id: string; name: string }>> {
+  try {
+    // Primary: project components endpoint
+    const data = await jiraFetch(`/project/${projectKey}/components`)
+    let list = Array.isArray(data)
+      ? data
+      : Array.isArray((data as any)?.values)
+        ? (data as any).values
+        : []
+
+    // Fallback: some Jira instances prefer the /component?projectId={id} style (paginated)
+    if (!list || list.length === 0) {
+      try {
+        const proj = await jiraFetch(`/project/${projectKey}`)
+        const projectId = proj?.id
+        if (projectId) {
+          const compData = await jiraFetch(
+            `/component?projectId=${encodeURIComponent(projectId)}&maxResults=1000`
+          )
+          list = Array.isArray((compData as any)?.values)
+            ? (compData as any).values
+            : Array.isArray(compData)
+              ? (compData as any)
+              : []
+        }
+      } catch (e) {
+        // ignore fallback error, will return empty below
+      }
+    }
+
+    return (list || []).map((c: any) => ({ id: String(c.id), name: c.name }))
+  } catch (error) {
+    console.error('Error fetching project components:', error)
+    return []
+  }
+}
+
+export async function createIssue(params: {
+  projectKey: string
+  title: string
+  description: string
+  assigneeAccountId: string | null
+  componentId: string
+  linkIssueKey?: string
+  linkType?: string
+}): Promise<{ key: string } | null> {
+  const {
+    projectKey,
+    title,
+    description,
+    assigneeAccountId,
+    componentId,
+    linkIssueKey,
+    linkType
+  } = params
+  try {
+    const adf = buildADFBodyFromText(description)
+    const fields: any = {
+      project: { key: projectKey },
+      summary: title,
+      description: adf.body,
+      ...(assigneeAccountId
+        ? { assignee: { accountId: assigneeAccountId } }
+        : {}),
+      components: componentId ? [{ id: String(componentId) }] : []
+    }
+
+    if (
+      linkIssueKey &&
+      typeof linkIssueKey === 'string' &&
+      linkIssueKey.trim()
+    ) {
+      const key = linkIssueKey.trim()
+      // Map relationship selection to Jira issuelinks shape
+      // For directional link types, use outwardIssue vs inwardIssue accordingly
+      const typeName = (linkType || 'Relates').trim()
+      const rel = typeName.toLowerCase()
+      let link: any = { type: { name: 'Relates' }, outwardIssue: { key } }
+      if (rel === 'relates') {
+        link = { type: { name: 'Relates' }, outwardIssue: { key } }
+      } else if (rel === 'blocks') {
+        link = { type: { name: 'Blocks' }, outwardIssue: { key } }
+      } else if (rel === 'blocked by' || rel === 'is blocked by') {
+        link = { type: { name: 'Blocks' }, inwardIssue: { key } }
+      } else if (rel === 'duplicates' || rel === 'duplicate') {
+        link = { type: { name: 'Duplicate' }, outwardIssue: { key } }
+      } else if (rel === 'duplicated by' || rel === 'is duplicated by') {
+        link = { type: { name: 'Duplicate' }, inwardIssue: { key } }
+      } else if (rel === 'clones') {
+        link = { type: { name: 'Cloners' }, outwardIssue: { key } }
+      } else if (rel === 'cloned by' || rel === 'is cloned by') {
+        link = { type: { name: 'Cloners' }, inwardIssue: { key } }
+      }
+      fields.issuelinks = [link]
+    }
+
+    const body = { fields }
+
+    const res = await jiraFetch(`/issue`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    if (res?.key) return { key: res.key }
+    return null
+  } catch (error) {
+    console.error('Error creating issue:', error)
+    return null
+  }
+}
+
+export async function getIssueSuggestions(
+  projectKey: string,
+  query: string,
+  maxResults = 20
+): Promise<Array<{ key: string; summary: string }>> {
+  try {
+    const params = new URLSearchParams()
+    // Jira's issue picker needs a query string
+    params.set('query', query)
+    // Constrain suggestions to the given project via currentJQL
+    if (projectKey) params.set('currentJQL', `project = ${projectKey}`)
+    // Cap results
+    if (maxResults && Number.isFinite(maxResults)) {
+      params.set('maxResults', String(Math.max(1, Math.min(50, maxResults))))
+    }
+
+    const data = await jiraFetch(`/issue/picker?${params.toString()}`)
+
+    // Expected shape:
+    // {
+    //   sections: [
+    //     { issues: [{key: 'ABC-1', summary: '...'}, ...] }, ...
+    //   ]
+    // }
+    const sections = (data as any)?.sections
+    if (!Array.isArray(sections) || sections.length === 0) return []
+
+    const out: Array<{ key: string; summary: string }> = []
+    for (const section of sections) {
+      const issues = section?.issues
+      if (Array.isArray(issues)) {
+        for (const it of issues) {
+          if (it && typeof it.key === 'string') {
+            out.push({ key: it.key, summary: String(it.summary || '') })
+            if (out.length >= maxResults) return out
+          }
+        }
+      }
+      if (out.length >= maxResults) break
+    }
+
+    return out
+  } catch (error) {
+    console.error('Error fetching issue suggestions:', error)
+    return []
+  }
+}

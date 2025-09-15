@@ -37,6 +37,7 @@ import { KeyboardKey } from '@/components/ui/keyboard-key'
 import { Input } from '@/components/ui/input'
 import { LoadingTracker } from '@/components/loading-tracker'
 import type { TrackerStatus } from '@/components/loading-tracker'
+import { NewIssueModal } from '@/components/new-issue-modal'
 
 interface Sprint {
   id: string
@@ -53,6 +54,7 @@ const STORAGE_KEYS = {
 
 export default function HomePage() {
   const [issues, setIssues] = useState<JiraIssue[]>([])
+  const [newIssueOpen, setNewIssueOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [projects, setProjects] = useState<JiraProject[]>([])
@@ -670,6 +672,14 @@ export default function HomePage() {
             <ThemeToggle />
             <Badge variant='outline'>{issues.length} issues loaded</Badge>
             <Button
+              size='sm'
+              onClick={() => setNewIssueOpen(true)}
+              className='whitespace-nowrap cursor-pointer'
+              disabled={!selectedProject}
+            >
+              New Issue
+            </Button>
+            <Button
               variant='outline'
               size='sm'
               onClick={handleLogout}
@@ -799,6 +809,16 @@ export default function HomePage() {
         isOpen={!!selectedIssue}
         onClose={() => setSelectedIssue(null)}
         onUpdate={handleIssueUpdate}
+      />
+
+      <NewIssueModal
+        projectKey={selectedProject}
+        isOpen={newIssueOpen}
+        onClose={() => setNewIssueOpen(false)}
+        onCreated={async (_key) => {
+          // Refresh issues after creating a new one
+          await loadIssues()
+        }}
       />
 
       <div className='flex-1 min-h-0 overflow-hidden'>

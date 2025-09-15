@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getIssues } from '@/lib/jira-api'
+import { getIssues, createIssue } from '@/lib/jira-api'
 import type { FilterOptions } from '@/types/jira'
 
 export async function GET(request: Request) {
@@ -53,6 +53,55 @@ export async function GET(request: Request) {
     console.error('API Error fetching issues:', error)
     return NextResponse.json(
       { error: 'Failed to fetch issues' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    const {
+      projectKey,
+      title,
+      description,
+      assigneeAccountId,
+      componentId,
+      linkIssueKey,
+      linkType
+    } = body || {}
+
+    if (!projectKey || !title || !description || !componentId) {
+      return NextResponse.json(
+        {
+          error: 'projectKey, title, description and componentId are required'
+        },
+        { status: 400 }
+      )
+    }
+
+    const result = await createIssue({
+      projectKey,
+      title,
+      description,
+      assigneeAccountId: assigneeAccountId ?? null,
+      componentId,
+      linkIssueKey,
+      linkType
+    })
+
+    if (!result) {
+      return NextResponse.json(
+        { error: 'Failed to create issue' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ key: result.key })
+  } catch (error) {
+    console.error('API Error creating issue:', error)
+    return NextResponse.json(
+      { error: 'Failed to create issue' },
       { status: 500 }
     )
   }
