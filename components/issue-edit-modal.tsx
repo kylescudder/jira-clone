@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -102,17 +102,60 @@ export function IssueEditModal({
   function CommentItem({
     issueKey,
     comment,
-    onChanged
+    onChanged,
+    projectUsers
   }: {
     issueKey: string
     comment: JiraComment
     onChanged: () => void | Promise<void>
+    projectUsers: JiraUser[]
   }) {
     const [isEditing, setIsEditing] = useState(false)
     const [editText, setEditText] = useState(comment.body)
     const [saving, setSaving] = useState(false)
     const [err, setErr] = useState<string | null>(null)
     const [copiedCommentLink, setCopiedCommentLink] = useState(false)
+
+    // Mention autocomplete state for edit textarea
+    const editTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+    const [editMentionOpen, setEditMentionOpen] = useState(false)
+    const [editMentionQuery, setEditMentionQuery] = useState('')
+    const [editMentionStart, setEditMentionStart] = useState<number | null>(
+      null
+    )
+
+    const detectMentionTrigger = (value: string, caret: number) => {
+      const prefix = value.slice(0, caret)
+      const m = prefix.match(/(^|\s)@([\w .\-]{1,40})$/)
+      if (m) {
+        const query = m[2]
+        const start = caret - query.length - 1
+        return { query, start }
+      }
+      return null
+    }
+
+    const insertMentionTokenAtCaret = (
+      ta: HTMLTextAreaElement,
+      displayName: string,
+      accountId: string,
+      startIndex: number | null
+    ) => {
+      const selStart = ta.selectionStart
+      const selEnd = ta.selectionEnd
+      const start = startIndex ?? selStart
+      const before = editText.slice(0, start)
+      const after = editText.slice(selEnd)
+      const token = `@[${displayName}|${accountId}]`
+      const next = before + token + after
+      setEditText(next)
+      // Move caret to after token
+      const pos = (before + token).length
+      requestAnimationFrame(() => {
+        ta.focus()
+        ta.setSelectionRange(pos, pos)
+      })
+    }
 
     const handleEditSave = async () => {
       const text = editText.trim()
@@ -241,13 +284,83 @@ export function IssueEditModal({
           </div>
 
           {isEditing ? (
-            <div className='mt-2'>
+            <div className='mt-2 relative'>
               <textarea
+                ref={editTextareaRef}
                 className='w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[90px]'
                 value={editText}
-                onChange={(e) => setEditText(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setEditText(val)
+                  const caret = e.target.selectionStart || val.length
+                  const t = detectMentionTrigger(val, caret)
+                  if (t) {
+                    setEditMentionOpen(true)
+                    setEditMentionQuery(t.query)
+                    setEditMentionStart(t.start)
+                  } else {
+                    setEditMentionOpen(false)
+                    setEditMentionQuery('')
+                    setEditMentionStart(null)
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && editMentionOpen) {
+                    setEditMentionOpen(false)
+                  }
+                }}
+                onClick={(e) => {
+                  const ta = e.currentTarget
+                  const caret = ta.selectionStart || 0
+                  const t = detectMentionTrigger(ta.value, caret)
+                  if (t) {
+                    setEditMentionOpen(true)
+                    setEditMentionQuery(t.query)
+                    setEditMentionStart(t.start)
+                  } else {
+                    setEditMentionOpen(false)
+                  }
+                }}
                 disabled={saving}
               />
+              {editMentionOpen && projectUsers?.length ? (
+                <div className='absolute z-20 left-0 mt-1 w-64 max-h-60 overflow-auto rounded-md border border-border bg-popover shadow-sm'>
+                  <div className='p-2 border-b border-border text-xs text-muted-foreground'>
+                    Mention someone
+                  </div>
+                  {projectUsers
+                    .filter((u) =>
+                      (u.displayName || '')
+                        .toLowerCase()
+                        .includes((editMentionQuery || '').toLowerCase())
+                    )
+                    .slice(0, 8)
+                    .map((u) => (
+                      <button
+                        key={u.accountId}
+                        type='button'
+                        className='flex w-full items-center gap-2 px-2 py-1.5 hover:bg-muted text-left'
+                        onMouseDown={(ev) => ev.preventDefault()}
+                        onClick={() => {
+                          const ta = editTextareaRef.current
+                          if (!ta) return
+                          insertMentionTokenAtCaret(
+                            ta,
+                            u.displayName,
+                            u.accountId,
+                            editMentionStart
+                          )
+                          setEditMentionOpen(false)
+                        }}
+                      >
+                        <span className='inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs'>
+                          @
+                        </span>
+                        <span className='truncate'>{u.displayName}</span>
+                      </button>
+                    ))}
+                </div>
+              ) : null}
               <div className='mt-2 flex items-center justify-end gap-2'>
                 {err && (
                   <span className='mr-auto text-xs text-red-600'>{err}</span>
@@ -320,6 +433,44 @@ export function IssueEditModal({
   const [postingComment, setPostingComment] = useState(false)
   const [commentError, setCommentError] = useState<string | null>(null)
   const [commentSuccess, setCommentSuccess] = useState<string | null>(null)
+
+  // Mention autocomplete for new comment
+  const newTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const [newMentionOpen, setNewMentionOpen] = useState(false)
+  const [newMentionQuery, setNewMentionQuery] = useState('')
+  const [newMentionStart, setNewMentionStart] = useState<number | null>(null)
+
+  const detectNewMentionTrigger = (value: string, caret: number) => {
+    const prefix = value.slice(0, caret)
+    const m = prefix.match(/(^|\s)@([\w .\-]{1,40})$/)
+    if (m) {
+      const query = m[2]
+      const start = caret - query.length - 1
+      return { query, start }
+    }
+    return null
+  }
+
+  const insertNewMentionTokenAtCaret = (
+    ta: HTMLTextAreaElement,
+    displayName: string,
+    accountId: string,
+    startIndex: number | null
+  ) => {
+    const selStart = ta.selectionStart
+    const selEnd = ta.selectionEnd
+    const start = startIndex ?? selStart
+    const before = newComment.slice(0, start)
+    const after = newComment.slice(selEnd)
+    const token = `@[${displayName}|${accountId}]`
+    const next = before + token + after
+    setNewComment(next)
+    const pos = (before + token).length
+    requestAnimationFrame(() => {
+      ta.focus()
+      ta.setSelectionRange(pos, pos)
+    })
+  }
   const [copiedId, setCopiedId] = useState(false)
   const [copiedIssueLink, setCopiedIssueLink] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
@@ -1031,15 +1182,90 @@ export function IssueEditModal({
                     <CollapsibleContent>
                       <CardContent className='pt-4'>
                         {/* Add Comment Form */}
-                        <div className='mb-5'>
+                        <div className='mb-5 relative'>
                           <textarea
                             id='new-comment'
+                            ref={newTextareaRef}
                             className='w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[120px]'
                             placeholder='Write a comment…'
                             value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setNewComment(val)
+                              const caret =
+                                e.target.selectionStart || val.length
+                              const t = detectNewMentionTrigger(val, caret)
+                              if (t) {
+                                setNewMentionOpen(true)
+                                setNewMentionQuery(t.query)
+                                setNewMentionStart(t.start)
+                              } else {
+                                setNewMentionOpen(false)
+                                setNewMentionQuery('')
+                                setNewMentionStart(null)
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape' && newMentionOpen) {
+                                setNewMentionOpen(false)
+                              }
+                            }}
+                            onClick={(e) => {
+                              const ta = e.currentTarget
+                              const caret = ta.selectionStart || 0
+                              const t = detectNewMentionTrigger(ta.value, caret)
+                              if (t) {
+                                setNewMentionOpen(true)
+                                setNewMentionQuery(t.query)
+                                setNewMentionStart(t.start)
+                              } else {
+                                setNewMentionOpen(false)
+                              }
+                            }}
                             disabled={postingComment}
                           />
+                          {newMentionOpen && projectUsers?.length ? (
+                            <div className='absolute z-20 left-0 mt-1 w-64 max-h-60 overflow-auto rounded-md border border-border bg-popover shadow-sm'>
+                              <div className='p-2 border-b border-border text-xs text-muted-foreground'>
+                                Mention someone
+                              </div>
+                              {projectUsers
+                                .filter((u) =>
+                                  (u.displayName || '')
+                                    .toLowerCase()
+                                    .includes(
+                                      (newMentionQuery || '').toLowerCase()
+                                    )
+                                )
+                                .slice(0, 8)
+                                .map((u) => (
+                                  <button
+                                    key={u.accountId}
+                                    type='button'
+                                    className='flex w-full items-center gap-2 px-2 py-1.5 hover:bg-muted text-left'
+                                    onMouseDown={(ev) => ev.preventDefault()}
+                                    onClick={() => {
+                                      const ta = newTextareaRef.current
+                                      if (!ta) return
+                                      insertNewMentionTokenAtCaret(
+                                        ta,
+                                        u.displayName,
+                                        u.accountId,
+                                        newMentionStart
+                                      )
+                                      setNewMentionOpen(false)
+                                    }}
+                                  >
+                                    <span className='inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs'>
+                                      @
+                                    </span>
+                                    <span className='truncate'>
+                                      {u.displayName}
+                                    </span>
+                                  </button>
+                                ))}
+                            </div>
+                          ) : null}
                           <div className='mt-2 flex items-center justify-between text-xs'>
                             <span className='text-muted-foreground'>
                               Press Enter for a new line. Click Add when ready.
@@ -1108,6 +1334,7 @@ export function IssueEditModal({
                             {details.comments.map((c) => (
                               <CommentItem
                                 key={c.id}
+                                projectUsers={projectUsers}
                                 issueKey={issue.key}
                                 comment={c}
                                 onChanged={async () => {

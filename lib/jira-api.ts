@@ -242,6 +242,10 @@ function extractTextFromADF(adfContent: any): string {
         return `> ${extractText({ content: node.content })}\n\n`
       case 'hardBreak':
         return '\n'
+      case 'mention': {
+        const t = node.attrs?.text || ''
+        return t || '@user'
+      }
       case 'table': {
         const rows = (node.content || []).map((row: any) => extractText(row))
         return rows.join('\n') + '\n\n'
@@ -507,6 +511,10 @@ export function adfToHtml(
           return `<img src="${url}" alt="${alt}" style="max-width:100%; height:auto; border-radius:4px;" />`
         }
         return ''
+      }
+      case 'mention': {
+        const t = esc(node.attrs?.text || '@user')
+        return `<span class="jira-mention" style="background: rgba(87,114,255,0.15); color: inherit; padding: 0 2px; border-radius: 3px;">${t}</span>`
       }
       default:
         if (Array.isArray(node.content)) return renderChildren(node)
@@ -829,13 +837,42 @@ function buildADFBodyFromText(text: string) {
   // Split by double newlines to create paragraphs
   const paragraphs = normalized.split(/\n\n+/)
 
+  // Helper: split a plain text segment into ADF nodes, recognizing mention tokens
+  // Token format: @[Display Name|accountId]
+  const tokenize = (segment: string) => {
+    const nodes: any[] = []
+    if (!segment) return nodes
+    const mentionRe = /@\[([^|\]]+?)\|([^\]]+?)\]/g
+    let lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = mentionRe.exec(segment))) {
+      const before = segment.slice(lastIndex, m.index)
+      if (before) nodes.push({ type: 'text', text: before })
+      const display = m[1]
+      const accountId = m[2]
+      nodes.push({
+        type: 'mention',
+        attrs: { id: accountId, text: `@${display}` }
+      })
+      lastIndex = m.index + m[0].length
+    }
+    const tail = segment.slice(lastIndex)
+    if (tail) nodes.push({ type: 'text', text: tail })
+    if (nodes.length === 0) nodes.push({ type: 'text', text: '' })
+    return nodes
+  }
+
   const content = paragraphs.map((para) => {
     // Within a paragraph, single newlines become hardBreak nodes
     const lines = para.split('\n')
     const paragraphContent: any[] = []
     lines.forEach((line, idx) => {
       if (line.length) {
-        paragraphContent.push({ type: 'text', text: line })
+        // Split into text and mention nodes
+        paragraphContent.push(...tokenize(line))
+      } else {
+        // keep empty text to preserve empty lines within paragraph
+        paragraphContent.push({ type: 'text', text: '' })
       }
       if (idx < lines.length - 1) {
         paragraphContent.push({ type: 'hardBreak' })
