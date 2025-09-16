@@ -17,10 +17,12 @@ import { Badge } from '@/components/ui/badge'
 import {
   normalizeStatusName,
   getStatusColor,
-  getStatusGroupRank
+  getStatusGroupRank,
+  isEditableTarget
 } from '@/lib/utils'
 import type { FilterOptions, JiraIssue } from '@/types/jira'
 import { KeyboardKey } from '@/components/ui/keyboard-key'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 interface FilterSidebarProps {
   filters: FilterOptions
@@ -28,12 +30,6 @@ interface FilterSidebarProps {
   issues: JiraIssue[]
   isOpen: boolean
   onToggle: () => void
-}
-
-const STORAGE_KEYS = {
-  FILTERS: 'jira-clone-filters',
-  FILTER_SECTIONS: 'jira-clone-filter-sections',
-  FILTER_SIDEBAR_OPEN: 'jira-clone-filter-sidebar-open'
 }
 
 export function FilterSidebar({
@@ -114,13 +110,7 @@ export function FilterSidebar({
     if (!isOpen) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-      const target = e.target as HTMLElement | null
-      const tag = (target?.tagName || '').toLowerCase()
-      const isEditable =
-        tag === 'input' ||
-        tag === 'textarea' ||
-        (target as any)?.isContentEditable === true
-      if (isEditable) return
+      if (isEditableTarget(e.target)) return
       const key = e.key.toLowerCase()
       if (key === 'a') {
         e.preventDefault()

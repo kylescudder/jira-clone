@@ -21,7 +21,8 @@ import {
   getCachedData,
   preloadIssueData,
   preloadIssues,
-  fetchIssueDetails
+  fetchIssueDetails,
+  prefetchProjectLookups
 } from '@/lib/client-api'
 import type {
   JiraIssue,
@@ -38,18 +39,13 @@ import { Input } from '@/components/ui/input'
 import { LoadingTracker } from '@/components/loading-tracker'
 import type { TrackerStatus } from '@/components/loading-tracker'
 import { NewIssueModal } from '@/components/new-issue-modal'
+import { isEditableTarget } from '@/lib/utils'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 interface Sprint {
   id: string
   name: string
   state: string
-}
-
-const STORAGE_KEYS = {
-  SELECTED_PROJECT: 'jira-clone-selected-project',
-  SELECTED_SPRINTS: 'jira-clone-selected-sprints',
-  FILTERS: 'jira-clone-filters',
-  FILTER_SIDEBAR_OPEN: 'jira-clone-filter-sidebar-open'
 }
 
 export default function HomePage() {
@@ -113,14 +109,7 @@ export default function HomePage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-      // Ignore when typing into inputs/textareas/contenteditable
-      const target = e.target as HTMLElement | null
-      const tag = (target?.tagName || '').toLowerCase()
-      const isEditable =
-        tag === 'input' ||
-        tag === 'textarea' ||
-        (target as any)?.isContentEditable === true
-      if (isEditable) return
+      if (isEditableTarget(e.target)) return
       if (e.key.toLowerCase() === 'c') {
         e.preventDefault()
         setNewIssueOpen(true)
@@ -389,9 +378,11 @@ export default function HomePage() {
     initializeApp()
   }, [])
 
-  // Load sprints when project changes
+  // Load sprints when project changes and prefetch lookup dropdown data
   useEffect(() => {
     if (selectedProject) {
+      // Warm caches for dropdowns so UI never waits
+      prefetchProjectLookups(selectedProject)
       loadSprintsForProject(selectedProject)
     }
   }, [selectedProject])

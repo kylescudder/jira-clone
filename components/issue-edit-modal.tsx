@@ -74,7 +74,9 @@ import { getCachedData } from '@/lib/client-api'
 import {
   normalizeStatusName,
   getStatusColor,
-  getStatusGroupRank
+  getStatusGroupRank,
+  isEditableTarget,
+  getInitials
 } from '@/lib/utils'
 import type {
   JiraIssue,
@@ -107,13 +109,7 @@ export function IssueEditModal({
     if (!isOpen) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-      const target = e.target as HTMLElement | null
-      const tag = (target?.tagName || '').toLowerCase()
-      const isEditable =
-        tag === 'input' ||
-        tag === 'textarea' ||
-        (target as any)?.isContentEditable === true
-      if (isEditable) return
+      if (isEditableTarget(e.target)) return
       const key = e.key.toLowerCase()
       if (key === 'a') {
         e.preventDefault()
@@ -1554,10 +1550,7 @@ export function IssueEditModal({
                             }
                           />
                           <AvatarFallback className='text-xs'>
-                            {displayIssue.assignee.displayName
-                              .split(' ')
-                              .map((n) => n[0])
-                              .join('')}
+                            {getInitials(displayIssue.assignee.displayName)}
                           </AvatarFallback>
                         </Avatar>
                         <span className='text-sm font-medium'>

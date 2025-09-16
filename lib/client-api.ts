@@ -24,8 +24,9 @@ export function getCachedData<T = any>(key: string): T | null {
     if (!parsed || typeof parsed.ts !== 'number') return null
     // TTL of 0 means no expiry
     if (parsed.ttl > 0 && now() - parsed.ts > parsed.ttl) {
-      // expired
-      return parsed.data ?? null
+      // expired - remove and return null so callers can fetch fresh
+      localStorage.removeItem(CACHE_PREFIX + key)
+      return null
     }
     return parsed.data
   } catch (e) {
@@ -45,6 +46,45 @@ export function setCachedData<T = any>(
     localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry))
   } catch (e) {
     // Ignore quota errors
+  }
+}
+
+// Generic cache-first + background-refresh fetch helper to reduce repetition
+async function fetchWithCache<T = any>(options: {
+  url: string
+  cacheKey: string
+  ttlMs: number
+  transform?: (data: T) => T
+}): Promise<T> {
+  const { url, cacheKey, ttlMs, transform } = options
+  try {
+    const cached = getCachedData<T>(cacheKey)
+    if (cached != null) {
+      // Background refresh
+      ;(async () => {
+        try {
+          const r = await fetch(url)
+          if (!r.ok) return
+          let fresh = (await r.json()) as T
+          if (transform) fresh = transform(fresh)
+          setCachedData(cacheKey, fresh, ttlMs)
+        } catch {
+          // ignore background errors
+        }
+      })()
+      return cached
+    }
+
+    // No cache -> fetch
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    let data = (await response.json()) as T
+    if (transform) data = transform(data)
+    setCachedData(cacheKey, data, ttlMs)
+    return data
+  } catch (error) {
+    console.error('fetchWithCache error:', error)
+    return getCachedData<T>(cacheKey) as T as T
   }
 }
 
@@ -81,17 +121,16 @@ export async function fetchProjects(): Promise<JiraProject[]> {
 export async function fetchProjectUsers(
   projectKey: string
 ): Promise<JiraUser[]> {
+  const cacheKey = `projectUsers:${projectKey}`
   try {
-    const response = await fetch(`/api/projects/${projectKey}/users`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    const data = (await response.json()) as JiraUser[]
-    setCachedData(`projectUsers:${projectKey}`, data, 60 * 60 * 1000)
-    return data
+    return await fetchWithCache<JiraUser[]>({
+      url: `/api/projects/${projectKey}/users`,
+      cacheKey,
+      ttlMs: 60 * 60 * 1000
+    })
   } catch (error) {
     console.error('Error fetching project users:', error)
-    return getCachedData<JiraUser[]>(`projectUsers:${projectKey}`) || []
+    return getCachedData<JiraUser[]>(cacheKey) || []
   }
 }
 
@@ -461,31 +500,22 @@ export async function fetchProjectVersions(
 ): Promise<
   Array<{ id: string; name: string; released: boolean; archived?: boolean }>
 > {
+  const cacheKey = `versions:${projectKey}`
+  type Version = {
+    id: string
+    name: string
+    released: boolean
+    archived?: boolean
+  }
   try {
-    const response = await fetch(`/api/projects/${projectKey}/versions`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    const data = (await response.json()) as Array<{
-      id: string
-      name: string
-      released: boolean
-      archived?: boolean
-    }>
-    setCachedData(`versions:${projectKey}`, data, 15 * 60 * 1000)
-    return data
+    return await fetchWithCache<Version[]>({
+      url: `/api/projects/${projectKey}/versions`,
+      cacheKey,
+      ttlMs: 15 * 60 * 1000
+    })
   } catch (error) {
     console.error('Error fetching project versions:', error)
-    return (
-      getCachedData<
-        Array<{
-          id: string
-          name: string
-          released: boolean
-          archived?: boolean
-        }>
-      >(`versions:${projectKey}`) || []
-    )
+    return getCachedData<Version[]>(cacheKey) || []
   }
 }
 
@@ -532,21 +562,16 @@ export async function fetchIssue(issueKey: string): Promise<JiraIssue | null> {
 export async function fetchProjectComponents(
   projectKey: string
 ): Promise<Array<{ id: string; name: string }>> {
+  const cacheKey = `components:${projectKey}`
   try {
-    const response = await fetch(`/api/projects/${projectKey}/components`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    const data = (await response.json()) as Array<{ id: string; name: string }>
-    setCachedData(`components:${projectKey}`, data, 60 * 60 * 1000)
-    return data
+    return await fetchWithCache<Array<{ id: string; name: string }>>({
+      url: `/api/projects/${projectKey}/components`,
+      cacheKey,
+      ttlMs: 60 * 60 * 1000
+    })
   } catch (error) {
     console.error('Error fetching project components:', error)
-    return (
-      getCachedData<Array<{ id: string; name: string }>>(
-        `components:${projectKey}`
-      ) || []
-    )
+    return getCachedData<Array<{ id: string; name: string }>>(cacheKey) || []
   }
 }
 
@@ -559,6 +584,7 @@ export async function createIssueClient(params: {
   issueTypeId?: string
   linkIssueKey?: string
   linkType?: string
+  versionIds?: string[]
 }): Promise<{ key: string } | null> {
   try {
     const response = await fetch(`/api/issues`, {
@@ -584,42 +610,35 @@ export async function fetchIssueTypes(
 ): Promise<
   Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
 > {
+  const cacheKey = `issuetypes:${projectKey}`
+  type IssueType = {
+    id: string
+    name: string
+    subtask?: boolean
+    iconUrl?: string
+  }
+  const transform = (list: IssueType[]) =>
+    (list || []).filter(Boolean).length
+      ? // distinct by normalized name
+        (list || []).filter(Boolean).reduce<IssueType[]>((acc, cur) => {
+          const key = (cur.name || '').trim().toLowerCase()
+          if (!key) return acc
+          if (acc.find((x) => (x.name || '').trim().toLowerCase() === key))
+            return acc
+          acc.push(cur)
+          return acc
+        }, [])
+      : []
   try {
-    const cacheKey = `issuetypes:${projectKey}`
-    const cached =
-      getCachedData<
-        Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
-      >(cacheKey)
-    if (cached) return cached
-    const response = await fetch(
-      `/api/issuetypes?project=${encodeURIComponent(projectKey)}`
-    )
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    let data = (await response.json()) as Array<{
-      id: string
-      name: string
-      subtask?: boolean
-      iconUrl?: string
-    }>
-    // Deduplicate by normalized name to keep list distinct
-    const seen = new Set<string>()
-    data = data.filter((t) => {
-      const key = (t.name || '').trim().toLowerCase()
-      if (!key || seen.has(key)) return false
-      seen.add(key)
-      return true
+    return await fetchWithCache<IssueType[]>({
+      url: `/api/issuetypes?project=${encodeURIComponent(projectKey)}`,
+      cacheKey,
+      ttlMs: 60 * 60 * 1000,
+      transform
     })
-    setCachedData(cacheKey, data, 60 * 60 * 1000)
-    return data
   } catch (error) {
     console.error('Error fetching issue types:', error)
-    return (
-      getCachedData<
-        Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
-      >(`issuetypes:${projectKey}`) || []
-    )
+    return getCachedData<IssueType[]>(cacheKey) || []
   }
 }
 
@@ -643,4 +662,14 @@ export async function fetchIssueSuggestions(
     console.warn('fetchIssueSuggestions error', e)
     return []
   }
+}
+
+// Prefetch dropdown lookups so the user never waits
+export function prefetchProjectLookups(projectKey: string) {
+  if (!projectKey || typeof window === 'undefined') return
+  // Kick all off; cache-first fetchers will return fast and revalidate
+  void fetchProjectUsers(projectKey)
+  void fetchProjectComponents(projectKey)
+  void fetchIssueTypes(projectKey)
+  void fetchProjectVersions(projectKey)
 }

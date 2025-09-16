@@ -158,3 +158,34 @@ export function getStatusGroupRank(status: string): number {
   // Unknowns: place after known groups but before green? Put at end to be safe
   return 3
 }
+
+// New shared helpers to reduce duplication across components
+export function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  const tag = (el?.tagName || '').toLowerCase()
+  const isContentEditable = (el as any)?.isContentEditable === true
+  return tag === 'input' || tag === 'textarea' || isContentEditable
+}
+
+export function getInitials(name: string): string {
+  return (name || '')
+    .trim()
+    .split(/\s+/)
+    .map((n) => n[0])
+    .filter(Boolean)
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+export function dedupeBy<T, K>(items: T[], keySelector: (item: T) => K): T[] {
+  const seen = new Set<K>()
+  const out: T[] = []
+  for (const it of items || []) {
+    const key = keySelector(it)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(it)
+  }
+  return out
+}

@@ -1316,6 +1316,7 @@ export async function createIssue(params: {
   issueTypeId?: string
   linkIssueKey?: string
   linkType?: string
+  versionIds?: string[]
 }): Promise<{ key: string } | null> {
   const {
     projectKey,
@@ -1325,7 +1326,8 @@ export async function createIssue(params: {
     componentId,
     issueTypeId,
     linkIssueKey,
-    linkType
+    linkType,
+    versionIds
   } = params
   try {
     const adf = buildADFBodyFromText(description)
@@ -1347,6 +1349,11 @@ export async function createIssue(params: {
     // Set issue type if provided
     if (issueTypeId) {
       fields.issuetype = { id: String(issueTypeId) }
+    }
+
+    // Set fix versions if provided (array of version IDs)
+    if (Array.isArray(versionIds) && versionIds.length > 0) {
+      fields.fixVersions = versionIds.map((id) => ({ id: String(id) }))
     }
 
     if (

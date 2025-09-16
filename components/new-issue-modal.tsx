@@ -31,10 +31,12 @@ import {
   fetchProjectComponents,
   createIssueClient,
   fetchIssueSuggestions,
-  fetchIssueTypes
+  fetchIssueTypes,
+  fetchProjectVersions
 } from '@/lib/client-api'
 import type { JiraUser } from '@/types/jira'
 import { useToast } from '@/lib/use-toast'
+import { getInitials, isEditableTarget } from '@/lib/utils'
 
 interface NewIssueModalProps {
   projectKey: string
@@ -74,6 +76,11 @@ export function NewIssueModal({
   const [issueTypes, setIssueTypes] = useState<
     Array<{ id: string; name: string }>
   >([])
+  const [versions, setVersions] = useState<
+    Array<{ id: string; name: string; released?: boolean; archived?: boolean }>
+  >([])
+  const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
+  const [versionsOpen, setVersionsOpen] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -96,14 +103,7 @@ export function NewIssueModal({
     const onKeyDown = (e: KeyboardEvent) => {
       // Ignore if modifier keys are pressed
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-      // Ignore if typing into an input/textarea/contenteditable element
-      const target = e.target as HTMLElement | null
-      const tag = (target?.tagName || '').toLowerCase()
-      const isEditable =
-        tag === 'input' ||
-        tag === 'textarea' ||
-        (target as any)?.isContentEditable === true
-      if (isEditable) return
+      if (isEditableTarget(e.target)) return
       if (e.key.toLowerCase() === 'a') {
         e.preventDefault()
         setAssigneeOpen(true)
@@ -113,31 +113,28 @@ export function NewIssueModal({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isOpen])
 
-  const getInitials = (name: string) =>
-    (name || '')
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .slice(0, 2)
-
   useEffect(() => {
     if (!isOpen || !projectKey) return
     let cancelled = false
     const load = async () => {
       try {
         setError(null)
-        const [usersData, componentsData, issueTypesData] = await Promise.all([
-          fetchProjectUsers(projectKey),
-          fetchProjectComponents(projectKey),
-          fetchIssueTypes(projectKey)
-        ])
+        const [usersData, componentsData, issueTypesData, versionsData] =
+          await Promise.all([
+            fetchProjectUsers(projectKey),
+            fetchProjectComponents(projectKey),
+            fetchIssueTypes(projectKey),
+            fetchProjectVersions(projectKey)
+          ])
         if (!cancelled) {
           setUsers(usersData)
           setComponents(componentsData)
           setIssueTypes(issueTypesData.map((t) => ({ id: t.id, name: t.name })))
+          setVersions(versionsData)
         }
       } catch (e) {
-        if (!cancelled) setError('Failed to load users/components/issue types.')
+        if (!cancelled)
+          setError('Failed to load users/components/issue types/versions.')
       }
     }
     load()
@@ -154,6 +151,8 @@ export function NewIssueModal({
     setLinkIssueKey('')
     setLinkType('Relates')
     setIssueTypeId('')
+    setSelectedVersionIds([])
+    setVersionsOpen(false)
     setSuggestions([])
     setSuggestOpen(false)
     setSuggestLoading(false)
@@ -229,7 +228,8 @@ export function NewIssueModal({
       componentId,
       issueTypeId: issueTypeId || undefined,
       linkIssueKey: linkIssueKey.trim() || undefined,
-      linkType: linkIssueKey.trim() ? linkType : undefined
+      linkType: linkIssueKey.trim() ? linkType : undefined,
+      versionIds: selectedVersionIds
     })
     setLoading(false)
     if (!res?.key) {
@@ -578,6 +578,61 @@ export function NewIssueModal({
                             )}
                           </CommandItem>
                         ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='releases'>Releases</Label>
+              <Popover open={versionsOpen} onOpenChange={setVersionsOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type='button'
+                    id='releases'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    disabled={loading}
+                    aria-haspopup='listbox'
+                    aria-expanded={versionsOpen}
+                  >
+                    <span className='truncate flex items-center gap-2'>
+                      {selectedVersionIds.length === 0
+                        ? 'Select releases'
+                        : `${selectedVersionIds.length} release${selectedVersionIds.length === 1 ? '' : 's'} selected`}
+                    </span>
+                    <ChevronsUpDown className='h-4 w-4 opacity-60' />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
+                  <Command>
+                    <CommandInput placeholder='Search releases...' />
+                    <CommandList>
+                      <CommandEmpty>No releases found.</CommandEmpty>
+                      <CommandGroup heading='Releases'>
+                        {versions.map((v) => {
+                          const checked = selectedVersionIds.includes(v.id)
+                          return (
+                            <CommandItem
+                              key={v.id}
+                              value={v.name}
+                              onSelect={() => {
+                                setSelectedVersionIds((prev) => {
+                                  const has = prev.includes(v.id)
+                                  if (has)
+                                    return prev.filter((id) => id !== v.id)
+                                  return [...prev, v.id]
+                                })
+                              }}
+                            >
+                              <span className='truncate'>{v.name}</span>
+                              {checked && (
+                                <Check className='ml-auto h-4 w-4 opacity-70' />
+                              )}
+                            </CommandItem>
+                          )
+                        })}
                       </CommandGroup>
                     </CommandList>
                   </Command>
