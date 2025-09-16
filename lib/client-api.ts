@@ -579,26 +579,38 @@ export async function createIssueClient(params: {
   }
 }
 
-export async function fetchIssueTypes(): Promise<
+export async function fetchIssueTypes(
+  projectKey: string
+): Promise<
   Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
 > {
   try {
-    const cacheKey = `issuetypes`
+    const cacheKey = `issuetypes:${projectKey}`
     const cached =
       getCachedData<
         Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
       >(cacheKey)
     if (cached) return cached
-    const response = await fetch(`/api/issuetypes`)
+    const response = await fetch(
+      `/api/issuetypes?project=${encodeURIComponent(projectKey)}`
+    )
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
-    const data = (await response.json()) as Array<{
+    let data = (await response.json()) as Array<{
       id: string
       name: string
       subtask?: boolean
       iconUrl?: string
     }>
+    // Deduplicate by normalized name to keep list distinct
+    const seen = new Set<string>()
+    data = data.filter((t) => {
+      const key = (t.name || '').trim().toLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
     setCachedData(cacheKey, data, 60 * 60 * 1000)
     return data
   } catch (error) {
@@ -606,7 +618,7 @@ export async function fetchIssueTypes(): Promise<
     return (
       getCachedData<
         Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
-      >('issuetypes') || []
+      >(`issuetypes:${projectKey}`) || []
     )
   }
 }

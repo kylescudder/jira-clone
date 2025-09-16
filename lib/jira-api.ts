@@ -1392,10 +1392,36 @@ export async function createIssue(params: {
   }
 }
 
-export async function getIssueTypes(): Promise<
+export async function getIssueTypes(
+  projectKey?: string
+): Promise<
   Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
 > {
   try {
+    // If a projectKey is provided, prefer Create Meta for project-scoped issue types
+    if (projectKey) {
+      try {
+        const meta = await jiraFetch(
+          `/issue/createmeta?projectKeys=${encodeURIComponent(
+            projectKey
+          )}&expand=projects.issuetypes`
+        )
+        const projects = (meta as any)?.projects || []
+        const issuetypes = (projects[0]?.issuetypes as any[]) || []
+        if (Array.isArray(issuetypes) && issuetypes.length) {
+          return issuetypes.map((t: any) => ({
+            id: String(t.id),
+            name: String(t.name),
+            subtask: Boolean(t.subtask),
+            iconUrl: t.iconUrl
+          }))
+        }
+      } catch (e) {
+        // fall back below
+      }
+    }
+
+    // Fallback: global issue types
     const data = await jiraFetch(`/issuetype`)
     const list = Array.isArray(data) ? data : []
     return list.map((t: any) => ({

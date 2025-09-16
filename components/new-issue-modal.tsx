@@ -106,7 +106,7 @@ export function NewIssueModal({
         const [usersData, componentsData, issueTypesData] = await Promise.all([
           fetchProjectUsers(projectKey),
           fetchProjectComponents(projectKey),
-          fetchIssueTypes()
+          fetchIssueTypes(projectKey)
         ])
         if (!cancelled) {
           setUsers(usersData)
