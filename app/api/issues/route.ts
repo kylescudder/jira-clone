@@ -67,6 +67,7 @@ export async function POST(request: Request) {
       description,
       assigneeAccountId,
       componentId,
+      issueTypeId,
       linkIssueKey,
       linkType
     } = body || {}
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
       description,
       assigneeAccountId: assigneeAccountId ?? null,
       componentId,
+      issueTypeId,
       linkIssueKey,
       linkType
     })

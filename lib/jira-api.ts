@@ -1236,37 +1236,73 @@ export async function getProjectComponents(
   projectKey: string
 ): Promise<Array<{ id: string; name: string }>> {
   try {
-    // Primary: project components endpoint
-    const data = await jiraFetch(`/project/${projectKey}/components`)
-    let list = Array.isArray(data)
-      ? data
-      : Array.isArray((data as any)?.values)
-        ? (data as any).values
-        : []
+    // New behavior: use Create Meta to pull allowedValues for customfield_10312
+    const meta = await jiraFetch(
+      `/issue/createmeta?projectKeys=${encodeURIComponent(
+        projectKey
+      )}&expand=projects.issuetypes.fields`
+    )
 
-    // Fallback: some Jira instances prefer the /component?projectId={id} style (paginated)
-    if (!list || list.length === 0) {
-      try {
-        const proj = await jiraFetch(`/project/${projectKey}`)
-        const projectId = proj?.id
-        if (projectId) {
-          const compData = await jiraFetch(
-            `/component?projectId=${encodeURIComponent(projectId)}&maxResults=1000`
-          )
-          list = Array.isArray((compData as any)?.values)
-            ? (compData as any).values
-            : Array.isArray(compData)
-              ? (compData as any)
-              : []
+    let options: Array<{ id: string; name: string }> = []
+    const projects = (meta as any)?.projects || []
+    if (projects.length > 0) {
+      for (const it of (projects[0]?.issuetypes as any[]) || []) {
+        const fields = (it && (it as any).fields) || {}
+        const cf = fields?.customfield_10312
+        const allowed = cf?.allowedValues
+        if (Array.isArray(allowed) && allowed.length > 0) {
+          options = allowed.map((opt: any) => ({
+            id: String(opt.id ?? opt.value ?? opt.name),
+            name: String(opt.name ?? opt.value ?? opt.id)
+          }))
+          break
         }
-      } catch (e) {
-        // ignore fallback error, will return empty below
       }
     }
 
-    return (list || []).map((c: any) => ({ id: String(c.id), name: c.name }))
+    // If createmeta didn't return anything usable, fall back to old components API
+    if (!options || options.length === 0) {
+      try {
+        const data = await jiraFetch(`/project/${projectKey}/components`)
+        let list = Array.isArray(data)
+          ? data
+          : Array.isArray((data as any)?.values)
+            ? (data as any).values
+            : []
+
+        if (!list || list.length === 0) {
+          try {
+            const proj = await jiraFetch(`/project/${projectKey}`)
+            const projectId = (proj as any)?.id
+            if (projectId) {
+              const compData = await jiraFetch(
+                `/component?projectId=${encodeURIComponent(
+                  projectId
+                )}&maxResults=1000`
+              )
+              list = Array.isArray((compData as any)?.values)
+                ? (compData as any).values
+                : Array.isArray(compData)
+                  ? (compData as any)
+                  : []
+            }
+          } catch (e) {
+            // ignore fallback error
+          }
+        }
+
+        options = (list || []).map((c: any) => ({
+          id: String(c.id),
+          name: c.name
+        }))
+      } catch (e) {
+        // ignore, return empty below
+      }
+    }
+
+    return options
   } catch (error) {
-    console.error('Error fetching project components:', error)
+    console.error('Error fetching project components / createmeta:', error)
     return []
   }
 }
@@ -1277,6 +1313,7 @@ export async function createIssue(params: {
   description: string
   assigneeAccountId: string | null
   componentId: string
+  issueTypeId?: string
   linkIssueKey?: string
   linkType?: string
 }): Promise<{ key: string } | null> {
@@ -1286,6 +1323,7 @@ export async function createIssue(params: {
     description,
     assigneeAccountId,
     componentId,
+    issueTypeId,
     linkIssueKey,
     linkType
   } = params
@@ -1297,8 +1335,18 @@ export async function createIssue(params: {
       description: adf.body,
       ...(assigneeAccountId
         ? { assignee: { accountId: assigneeAccountId } }
-        : {}),
-      components: componentId ? [{ id: String(componentId) }] : []
+        : {})
+    }
+
+    // Populate the custom field from the add modal selection (customfield_10312)
+    if (componentId) {
+      // Jira custom select fields typically expect an object with an id
+      fields.customfield_10312 = { id: String(componentId) }
+    }
+
+    // Set issue type if provided
+    if (issueTypeId) {
+      fields.issuetype = { id: String(issueTypeId) }
     }
 
     if (
@@ -1331,7 +1379,7 @@ export async function createIssue(params: {
     }
 
     const body = { fields }
-
+    console.log(JSON.stringify(body))
     const res = await jiraFetch(`/issue`, {
       method: 'POST',
       body: JSON.stringify(body)
@@ -1341,6 +1389,24 @@ export async function createIssue(params: {
   } catch (error) {
     console.error('Error creating issue:', error)
     return null
+  }
+}
+
+export async function getIssueTypes(): Promise<
+  Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
+> {
+  try {
+    const data = await jiraFetch(`/issuetype`)
+    const list = Array.isArray(data) ? data : []
+    return list.map((t: any) => ({
+      id: String(t.id),
+      name: String(t.name),
+      subtask: Boolean(t.subtask),
+      iconUrl: t.iconUrl
+    }))
+  } catch (error) {
+    console.error('Error fetching issue types:', error)
+    return []
   }
 }
 

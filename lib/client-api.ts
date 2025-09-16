@@ -556,6 +556,7 @@ export async function createIssueClient(params: {
   description: string
   assigneeAccountId: string | null
   componentId: string
+  issueTypeId?: string
   linkIssueKey?: string
   linkType?: string
 }): Promise<{ key: string } | null> {
@@ -575,6 +576,38 @@ export async function createIssueClient(params: {
   } catch (error) {
     console.error('Error creating issue:', error)
     return null
+  }
+}
+
+export async function fetchIssueTypes(): Promise<
+  Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
+> {
+  try {
+    const cacheKey = `issuetypes`
+    const cached =
+      getCachedData<
+        Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
+      >(cacheKey)
+    if (cached) return cached
+    const response = await fetch(`/api/issuetypes`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = (await response.json()) as Array<{
+      id: string
+      name: string
+      subtask?: boolean
+      iconUrl?: string
+    }>
+    setCachedData(cacheKey, data, 60 * 60 * 1000)
+    return data
+  } catch (error) {
+    console.error('Error fetching issue types:', error)
+    return (
+      getCachedData<
+        Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
+      >('issuetypes') || []
+    )
   }
 }
 

@@ -30,9 +30,11 @@ import {
   fetchProjectUsers,
   fetchProjectComponents,
   createIssueClient,
-  fetchIssueSuggestions
+  fetchIssueSuggestions,
+  fetchIssueTypes
 } from '@/lib/client-api'
 import type { JiraUser } from '@/types/jira'
+import { useToast } from '@/lib/use-toast'
 
 interface NewIssueModalProps {
   projectKey: string
@@ -47,6 +49,7 @@ export function NewIssueModal({
   onClose,
   onCreated
 }: NewIssueModalProps) {
+  const { toast } = useToast()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [assignee, setAssignee] = useState<string>('')
@@ -54,6 +57,7 @@ export function NewIssueModal({
   const [linkIssueKey, setLinkIssueKey] = useState<string>('')
   const [linkType, setLinkType] = useState<string>('Relates')
   const [relOpen, setRelOpen] = useState(false)
+  const [issueTypeId, setIssueTypeId] = useState<string>('')
   // Typeahead suggestions for linkIssueKey
   const [suggestions, setSuggestions] = useState<
     Array<{ key: string; summary: string }>
@@ -67,6 +71,9 @@ export function NewIssueModal({
   const [components, setComponents] = useState<
     Array<{ id: string; name: string }>
   >([])
+  const [issueTypes, setIssueTypes] = useState<
+    Array<{ id: string; name: string }>
+  >([])
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,6 +81,7 @@ export function NewIssueModal({
   // Popovers for improved dropdown UX
   const [assigneeOpen, setAssigneeOpen] = useState(false)
   const [componentOpen, setComponentOpen] = useState(false)
+  const [issueTypeOpen, setIssueTypeOpen] = useState(false)
 
   // Mention autocomplete for description
   const descRef = useRef<HTMLTextAreaElement | null>(null)
@@ -95,16 +103,18 @@ export function NewIssueModal({
     const load = async () => {
       try {
         setError(null)
-        const [usersData, componentsData] = await Promise.all([
+        const [usersData, componentsData, issueTypesData] = await Promise.all([
           fetchProjectUsers(projectKey),
-          fetchProjectComponents(projectKey)
+          fetchProjectComponents(projectKey),
+          fetchIssueTypes()
         ])
         if (!cancelled) {
           setUsers(usersData)
           setComponents(componentsData)
+          setIssueTypes(issueTypesData.map((t) => ({ id: t.id, name: t.name })))
         }
       } catch (e) {
-        if (!cancelled) setError('Failed to load users/components.')
+        if (!cancelled) setError('Failed to load users/components/issue types.')
       }
     }
     load()
@@ -120,6 +130,7 @@ export function NewIssueModal({
     setComponentId('')
     setLinkIssueKey('')
     setLinkType('Relates')
+    setIssueTypeId('')
     setSuggestions([])
     setSuggestOpen(false)
     setSuggestLoading(false)
@@ -193,6 +204,7 @@ export function NewIssueModal({
       description: description.trim(),
       assigneeAccountId: assignee || null,
       componentId,
+      issueTypeId: issueTypeId || undefined,
       linkIssueKey: linkIssueKey.trim() || undefined,
       linkType: linkIssueKey.trim() ? linkType : undefined
     })
@@ -202,8 +214,38 @@ export function NewIssueModal({
       return
     }
     const key = res.key
+    // Show success toast with actions
+    try {
+      const link =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/browse/${key}`
+          : key
+      toast({
+        title: 'Issue created',
+        description: `${key} has been created successfully.`,
+        action: {
+          label: 'Open',
+          onClick: () => {
+            onCreated(key)
+          },
+          secondaryLabel: 'Copy link',
+          onSecondaryClick: async () => {
+            try {
+              if (typeof window !== 'undefined' && navigator?.clipboard) {
+                await navigator.clipboard.writeText(link)
+              }
+            } catch (e) {
+              // ignore copy error
+            }
+          }
+        }
+      })
+    } catch (_) {
+      // ignore toast error
+    }
     reset()
     onClose()
+    // Keep behavior to auto-open via onCreated to preserve existing UX
     onCreated(key)
   }
 
@@ -411,6 +453,55 @@ export function NewIssueModal({
                             </Avatar>
                             <span className='truncate'>{u.displayName}</span>
                             {assignee === u.accountId && (
+                              <Check className='ml-auto h-4 w-4 opacity-70' />
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='issueType'>Issue type</Label>
+              <Popover open={issueTypeOpen} onOpenChange={setIssueTypeOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type='button'
+                    id='issueType'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    disabled={loading}
+                    aria-haspopup='listbox'
+                    aria-expanded={issueTypeOpen}
+                  >
+                    <span className='truncate'>
+                      {issueTypeId
+                        ? issueTypes.find((t) => t.id === issueTypeId)?.name ||
+                          'Select an issue type'
+                        : 'Select an issue type'}
+                    </span>
+                    <ChevronsUpDown className='h-4 w-4 opacity-60' />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
+                  <Command>
+                    <CommandInput placeholder='Search issue types...' />
+                    <CommandList>
+                      <CommandEmpty>No issue types found.</CommandEmpty>
+                      <CommandGroup heading='Issue types'>
+                        {issueTypes.map((t) => (
+                          <CommandItem
+                            key={t.id}
+                            value={t.name}
+                            onSelect={() => {
+                              setIssueTypeId(t.id)
+                              setIssueTypeOpen(false)
+                            }}
+                          >
+                            <span className='truncate'>{t.name}</span>
+                            {issueTypeId === t.id && (
                               <Check className='ml-auto h-4 w-4 opacity-70' />
                             )}
                           </CommandItem>
