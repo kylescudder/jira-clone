@@ -98,6 +98,37 @@ export function IssueEditModal({
   onClose,
   onUpdate
 }: IssueEditModalProps) {
+  // Keyboard shortcut: 'a' to open assignee selector; 's' to open status selector
+  const assigneeTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const [assigneeSelectOpen, setAssigneeSelectOpen] = useState(false)
+  const statusTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const [statusSelectOpen, setStatusSelectOpen] = useState(false)
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      const target = e.target as HTMLElement | null
+      const tag = (target?.tagName || '').toLowerCase()
+      const isEditable =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        (target as any)?.isContentEditable === true
+      if (isEditable) return
+      const key = e.key.toLowerCase()
+      if (key === 'a') {
+        e.preventDefault()
+        setAssigneeSelectOpen(true)
+        // focus the trigger so Radix Select knows the anchor
+        assigneeTriggerRef.current?.focus()
+      } else if (key === 's') {
+        e.preventDefault()
+        setStatusSelectOpen(true)
+        statusTriggerRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen])
   // Nested component for individual comment with actions
   function CommentItem({
     issueKey,
@@ -1474,8 +1505,13 @@ export function IssueEditModal({
                         value={selectedTransition}
                         onValueChange={setSelectedTransition}
                         disabled={loading && transitions.length === 0}
+                        open={statusSelectOpen}
+                        onOpenChange={setStatusSelectOpen}
                       >
-                        <SelectTrigger className='h-8 text-sm'>
+                        <SelectTrigger
+                          ref={statusTriggerRef}
+                          className='h-8 text-sm'
+                        >
                           <SelectValue placeholder='Select new status' />
                         </SelectTrigger>
                         <SelectContent>
@@ -1551,8 +1587,13 @@ export function IssueEditModal({
                         value={selectedAssignee}
                         onValueChange={setSelectedAssignee}
                         disabled={loading && projectUsers.length === 0}
+                        open={assigneeSelectOpen}
+                        onOpenChange={setAssigneeSelectOpen}
                       >
-                        <SelectTrigger className='h-8 text-sm'>
+                        <SelectTrigger
+                          ref={assigneeTriggerRef}
+                          className='h-8 text-sm'
+                        >
                           <SelectValue placeholder='Select assignee' />
                         </SelectTrigger>
                         <SelectContent>

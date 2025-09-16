@@ -109,6 +109,27 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null)
 
+  // Keyboard shortcut: 'c' to open Create (New Issue) modal
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      // Ignore when typing into inputs/textareas/contenteditable
+      const target = e.target as HTMLElement | null
+      const tag = (target?.tagName || '').toLowerCase()
+      const isEditable =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        (target as any)?.isContentEditable === true
+      if (isEditable) return
+      if (e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        setNewIssueOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   // Loading tracker state
   const [trackerVisible, setTrackerVisible] = useState(false)
   const [trackerCurrent, setTrackerCurrent] = useState(0)

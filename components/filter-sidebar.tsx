@@ -109,6 +109,43 @@ export function FilterSidebar({
     localStorage.setItem(STORAGE_KEYS.FILTERS, JSON.stringify(filters))
   }, [filters])
 
+  // Keyboard shortcut: When filter sidebar is open, press 'a' to open Assignee section; 's' to open Status section
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      const target = e.target as HTMLElement | null
+      const tag = (target?.tagName || '').toLowerCase()
+      const isEditable =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        (target as any)?.isContentEditable === true
+      if (isEditable) return
+      const key = e.key.toLowerCase()
+      if (key === 'a') {
+        e.preventDefault()
+        setOpenSections((prev: any) => ({ ...prev, assignee: true }))
+        // try to focus the Unassigned checkbox or its label
+        const el = document.getElementById(
+          'assignee-unassigned'
+        ) as HTMLElement | null
+        el?.focus?.()
+        el?.scrollIntoView?.({ block: 'center' })
+      } else if (key === 's') {
+        e.preventDefault()
+        setOpenSections((prev: any) => ({ ...prev, status: true }))
+        // try to focus the first status checkbox if exists
+        const statusSection = document.querySelector(
+          '[id^="status-"]'
+        ) as HTMLElement | null
+        statusSection?.focus?.()
+        statusSection?.scrollIntoView?.({ block: 'center' })
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen])
+
   // Add keyboard shortcut for toggling filter sidebar
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

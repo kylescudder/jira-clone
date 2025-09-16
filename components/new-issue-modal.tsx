@@ -90,6 +90,29 @@ export function NewIssueModal({
   const [mentionStart, setMentionStart] = useState<number | null>(null)
   const [mentionIndex, setMentionIndex] = useState(0)
 
+  // Keyboard shortcut: press 'a' to open Assignee dropdown (like Linear)
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ignore if modifier keys are pressed
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      // Ignore if typing into an input/textarea/contenteditable element
+      const target = e.target as HTMLElement | null
+      const tag = (target?.tagName || '').toLowerCase()
+      const isEditable =
+        tag === 'input' ||
+        tag === 'textarea' ||
+        (target as any)?.isContentEditable === true
+      if (isEditable) return
+      if (e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        setAssigneeOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen])
+
   const getInitials = (name: string) =>
     (name || '')
       .split(' ')
