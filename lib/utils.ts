@@ -189,3 +189,20 @@ export function dedupeBy<T, K>(items: T[], keySelector: (item: T) => K): T[] {
   }
   return out
 }
+
+// Minimal HTML entity decoder for safely displaying text values that may already
+// be entity-encoded (e.g., names in dropdowns). This does NOT execute HTML; it
+// only converts common entities back to their characters so React can render
+// them as plain text.
+export function decodeHtmlEntities(input: string | null | undefined): string {
+  if (!input) return ''
+  return input
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}

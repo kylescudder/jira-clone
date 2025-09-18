@@ -76,7 +76,8 @@ import {
   getStatusColor,
   getStatusGroupRank,
   isEditableTarget,
-  getInitials
+  getInitials,
+  decodeHtmlEntities
 } from '@/lib/utils'
 import type {
   JiraIssue,
@@ -1519,7 +1520,7 @@ export function IssueEditModal({
                               <span
                                 className={`inline-block rounded border px-2 py-0.5 text-xs ${getStatusColor(transition.name)}`}
                               >
-                                {transition.name}
+                                {decodeHtmlEntities(transition.name)}
                               </span>
                             </SelectItem>
                           ))}
@@ -1596,7 +1597,7 @@ export function IssueEditModal({
                               key={user.accountId}
                               value={user.displayName}
                             >
-                              {user.displayName}
+                              {decodeHtmlEntities(user.displayName)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1626,7 +1627,7 @@ export function IssueEditModal({
                             variant='secondary'
                             className='text-xs'
                           >
-                            {v.name}
+                            {decodeHtmlEntities(v.name)}
                           </Badge>
                         ))
                     ) : (
@@ -1660,9 +1661,11 @@ export function IssueEditModal({
                               {selectedVersionIds.length === 0
                                 ? 'Click to select version(s)...'
                                 : selectedVersionIds.length === 1
-                                  ? projectVersions.find(
-                                      (v) => v.id === selectedVersionIds[0]
-                                    )?.name || '1 selected'
+                                  ? decodeHtmlEntities(
+                                      projectVersions.find(
+                                        (v) => v.id === selectedVersionIds[0]
+                                      )?.name || '1 selected'
+                                    )
                                   : `${selectedVersionIds.length} versions selected`}
                             </div>
                             <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
@@ -1749,7 +1752,7 @@ export function IssueEditModal({
                                           className={`${selectedVersionIds.includes(v.id) ? 'text-primary opacity-100' : 'opacity-0'} h-4 w-4 shrink-0`}
                                         />
                                         <span className='truncate font-medium'>
-                                          {v.name}
+                                          {decodeHtmlEntities(v.name)}
                                         </span>
                                       </div>
                                       <Badge

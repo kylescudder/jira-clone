@@ -31,7 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
+import { cn, decodeHtmlEntities } from '@/lib/utils'
 
 interface Sprint {
   id: string
@@ -288,7 +288,7 @@ export function SprintSelector({
                       <div className='flex min-w-0 flex-1 items-center gap-2'>
                         {getSprintStateIcon(sprint.state)}
                         <span className='truncate font-medium'>
-                          {sprint.name}
+                          {decodeHtmlEntities(sprint.name)}
                         </span>
                       </div>
                     </div>
@@ -336,7 +336,7 @@ export function SprintSelector({
             >
               {getSprintStateIcon(sprint.state)}
               <span className='truncate text-xs font-medium'>
-                {sprint.name}
+                {decodeHtmlEntities(sprint.name)}
               </span>
               <X
                 className='ml-1 h-3 w-3 shrink-0 cursor-pointer hover:text-red-500'

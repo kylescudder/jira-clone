@@ -36,7 +36,7 @@ import {
 } from '@/lib/client-api'
 import type { JiraUser } from '@/types/jira'
 import { useToast } from '@/lib/use-toast'
-import { getInitials, isEditableTarget } from '@/lib/utils'
+import { getInitials, isEditableTarget, decodeHtmlEntities } from '@/lib/utils'
 
 interface NewIssueModalProps {
   projectKey: string
@@ -626,7 +626,9 @@ export function NewIssueModal({
                                 })
                               }}
                             >
-                              <span className='truncate'>{v.name}</span>
+                              <span className='truncate'>
+                                {decodeHtmlEntities(v.name)}
+                              </span>
                               {checked && (
                                 <Check className='ml-auto h-4 w-4 opacity-70' />
                               )}
@@ -731,7 +733,7 @@ export function NewIssueModal({
                       >
                         <span className='font-medium'>{s.key}</span>
                         <span className='ml-2 text-muted-foreground truncate inline-block max-w-[70%] align-middle'>
-                          {s.summary}
+                          {decodeHtmlEntities(s.summary)}
                         </span>
                       </button>
                     ))}
