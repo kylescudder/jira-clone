@@ -953,7 +953,23 @@ export async function getIssues(
     }
 
     // Add sprint filter (this is now required)
-    jql += ` AND sprint IN (${filters.sprint.map((s) => `"${s}"`).join(',')})`
+    if (filters.sprint?.length) {
+      const hasBacklog = filters.sprint.some(
+        (s) => s.toLowerCase() === 'backlog' || s === 'NO_SPRINT'
+      )
+      const namedSprints = filters.sprint.filter(
+        (s) => s.toLowerCase() !== 'backlog' && s !== 'NO_SPRINT'
+      )
+      if (hasBacklog && namedSprints.length > 0) {
+        jql += ` AND (sprint is EMPTY OR sprint IN (${namedSprints
+          .map((s) => `"${s}"`)
+          .join(',')}))`
+      } else if (hasBacklog) {
+        jql += ` AND sprint is EMPTY`
+      } else if (namedSprints.length > 0) {
+        jql += ` AND sprint IN (${namedSprints.map((s) => `"${s}"`).join(',')})`
+      }
+    }
 
     if (filters?.status?.length) {
       jql += ` AND status IN (${filters.status.map((s) => `"${s}"`).join(',')})`

@@ -428,8 +428,10 @@ export default function HomePage() {
       )
 
       // Clear selected sprints if they don't exist in the new project
-      const validSprints = selectedSprints.filter((sprintName) =>
-        sprintsData.some((sprint) => sprint.name === sprintName)
+      const validSprints = selectedSprints.filter(
+        (sprintName) =>
+          sprintName === 'Backlog' ||
+          sprintsData.some((sprint) => sprint.name === sprintName)
       )
       if (validSprints.length !== selectedSprints.length) {
         console.log(

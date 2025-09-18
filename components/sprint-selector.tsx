@@ -58,6 +58,7 @@ export function SprintSelector({
 }: SprintSelectorProps) {
   const [open, setOpen] = useState(false)
   const [showClosedSprints, setShowClosedSprints] = useState(false)
+  const BACKLOG_LABEL = 'Backlog'
 
   // Load show closed sprints setting from localStorage on mount
   useEffect(() => {
@@ -168,6 +169,12 @@ export function SprintSelector({
   const selectedSprintObjects = sprints.filter((sprint) =>
     selectedSprints.includes(sprint.name)
   )
+  const selectedBadgeItems = [
+    ...selectedSprintObjects,
+    ...(selectedSprints.includes(BACKLOG_LABEL)
+      ? ([{ id: '__backlog__', name: BACKLOG_LABEL, state: 'backlog' }] as any)
+      : [])
+  ]
 
   // Count sprints by state
   const sprintCounts = sprints.reduce(
@@ -269,6 +276,33 @@ export function SprintSelector({
             <CommandList>
               <CommandEmpty>No sprints found.</CommandEmpty>
               <CommandGroup>
+                {/* Backlog option */}
+                <CommandItem
+                  key='__backlog__'
+                  value={BACKLOG_LABEL}
+                  onSelect={() => handleSprintToggle(BACKLOG_LABEL)}
+                  className='flex items-center justify-between py-2'
+                >
+                  <div className='flex min-w-0 flex-1 items-center gap-2'>
+                    <Check
+                      className={cn(
+                        'h-4 w-4 shrink-0',
+                        selectedSprints.includes(BACKLOG_LABEL)
+                          ? 'text-primary opacity-100'
+                          : 'opacity-0'
+                      )}
+                    />
+                    <div className='flex min-w-0 flex-1 items-center gap-2'>
+                      <Archive className='h-3 w-3' />
+                      <span className='truncate font-medium'>
+                        {BACKLOG_LABEL}
+                      </span>
+                    </div>
+                  </div>
+                  <Badge variant='outline' className='ml-2 shrink-0 text-xs'>
+                    no sprint
+                  </Badge>
+                </CommandItem>
                 {sortedSprints.map((sprint) => (
                   <CommandItem
                     key={sprint.id}
@@ -323,9 +357,9 @@ export function SprintSelector({
       </Popover>
 
       {/* Selected sprint badges */}
-      {selectedSprintObjects.length > 0 && (
+      {selectedBadgeItems.length > 0 && (
         <div className='flex max-w-full sm:max-w-[500px] flex-wrap gap-1'>
-          {selectedSprintObjects.map((sprint) => (
+          {selectedBadgeItems.map((sprint: any) => (
             <Badge
               key={sprint.id}
               variant='secondary'
@@ -334,7 +368,11 @@ export function SprintSelector({
                 getSprintStateColor(sprint.state)
               )}
             >
-              {getSprintStateIcon(sprint.state)}
+              {sprint.id === '__backlog__' ? (
+                <Archive className='h-3 w-3' />
+              ) : (
+                getSprintStateIcon(sprint.state)
+              )}
               <span className='truncate text-xs font-medium'>
                 {decodeHtmlEntities(sprint.name)}
               </span>
