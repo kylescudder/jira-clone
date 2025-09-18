@@ -70,7 +70,8 @@ export async function POST(request: Request) {
       issueTypeId,
       linkIssueKey,
       linkType,
-      versionIds
+      versionIds,
+      sprintId
     } = body || {}
 
     if (!projectKey || !title || !description || !componentId) {
@@ -91,7 +92,8 @@ export async function POST(request: Request) {
       issueTypeId,
       linkIssueKey,
       linkType,
-      versionIds
+      versionIds,
+      sprintId
     })
 
     if (!result) {

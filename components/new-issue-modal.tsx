@@ -32,7 +32,8 @@ import {
   createIssueClient,
   fetchIssueSuggestions,
   fetchIssueTypes,
-  fetchProjectVersions
+  fetchProjectVersions,
+  fetchProjectSprints
 } from '@/lib/client-api'
 import type { JiraUser } from '@/types/jira'
 import { useToast } from '@/lib/use-toast'
@@ -82,6 +83,13 @@ export function NewIssueModal({
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [versionsOpen, setVersionsOpen] = useState(false)
 
+  // Sprints
+  const [sprints, setSprints] = useState<
+    Array<{ id: string; name: string; state: string }>
+  >([])
+  const [selectedSprintId, setSelectedSprintId] = useState<string>('')
+  const [sprintOpen, setSprintOpen] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -119,18 +127,25 @@ export function NewIssueModal({
     const load = async () => {
       try {
         setError(null)
-        const [usersData, componentsData, issueTypesData, versionsData] =
-          await Promise.all([
-            fetchProjectUsers(projectKey),
-            fetchProjectComponents(projectKey),
-            fetchIssueTypes(projectKey),
-            fetchProjectVersions(projectKey)
-          ])
+        const [
+          usersData,
+          componentsData,
+          issueTypesData,
+          versionsData,
+          sprintsData
+        ] = await Promise.all([
+          fetchProjectUsers(projectKey),
+          fetchProjectComponents(projectKey),
+          fetchIssueTypes(projectKey),
+          fetchProjectVersions(projectKey),
+          fetchProjectSprints(projectKey)
+        ])
         if (!cancelled) {
           setUsers(usersData)
           setComponents(componentsData)
           setIssueTypes(issueTypesData.map((t) => ({ id: t.id, name: t.name })))
           setVersions(versionsData)
+          setSprints(sprintsData)
         }
       } catch (e) {
         if (!cancelled)
@@ -153,6 +168,8 @@ export function NewIssueModal({
     setIssueTypeId('')
     setSelectedVersionIds([])
     setVersionsOpen(false)
+    setSelectedSprintId('')
+    setSprintOpen(false)
     setSuggestions([])
     setSuggestOpen(false)
     setSuggestLoading(false)
@@ -229,7 +246,8 @@ export function NewIssueModal({
       issueTypeId: issueTypeId || undefined,
       linkIssueKey: linkIssueKey.trim() || undefined,
       linkType: linkIssueKey.trim() ? linkType : undefined,
-      versionIds: selectedVersionIds
+      versionIds: selectedVersionIds,
+      sprintId: selectedSprintId || undefined
     })
     setLoading(false)
     if (!res?.key) {
@@ -578,6 +596,81 @@ export function NewIssueModal({
                             )}
                           </CommandItem>
                         ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='sprint'>Sprint</Label>
+              <Popover open={sprintOpen} onOpenChange={setSprintOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type='button'
+                    id='sprint'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    disabled={loading}
+                    aria-haspopup='listbox'
+                    aria-expanded={sprintOpen}
+                  >
+                    <span className='truncate'>
+                      {selectedSprintId
+                        ? sprints.find((s) => s.id === selectedSprintId)
+                            ?.name || 'Select a sprint'
+                        : 'Select a sprint'}
+                    </span>
+                    <ChevronsUpDown className='h-4 w-4 opacity-60' />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
+                  <Command>
+                    <CommandInput placeholder='Search sprints...' />
+                    <CommandList>
+                      <CommandEmpty>No sprints found.</CommandEmpty>
+                      <CommandGroup heading='Sprints'>
+                        <CommandItem
+                          key='__no_sprint__'
+                          onSelect={() => {
+                            setSelectedSprintId('')
+                            setSprintOpen(false)
+                          }}
+                        >
+                          <span className='truncate'>No sprint</span>
+                          {selectedSprintId === '' && (
+                            <Check className='ml-auto h-4 w-4 opacity-70' />
+                          )}
+                        </CommandItem>
+                        {sprints
+                          .slice()
+                          .sort((a, b) => {
+                            const order = {
+                              active: 0,
+                              future: 1,
+                              closed: 2
+                            } as any
+                            const sa = (a.state || '').toLowerCase()
+                            const sb = (b.state || '').toLowerCase()
+                            if (order[sa] !== order[sb])
+                              return order[sa] - order[sb]
+                            return a.name.localeCompare(b.name)
+                          })
+                          .map((s) => (
+                            <CommandItem
+                              key={s.id}
+                              value={`${s.name} ${s.state}`}
+                              onSelect={() => {
+                                setSelectedSprintId(s.id)
+                                setSprintOpen(false)
+                              }}
+                            >
+                              <span className='truncate'>{s.name}</span>
+                              {selectedSprintId === s.id && (
+                                <Check className='ml-auto h-4 w-4 opacity-70' />
+                              )}
+                            </CommandItem>
+                          ))}
                       </CommandGroup>
                     </CommandList>
                   </Command>

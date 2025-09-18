@@ -1317,6 +1317,7 @@ export async function createIssue(params: {
   linkIssueKey?: string
   linkType?: string
   versionIds?: string[]
+  sprintId?: string
 }): Promise<{ key: string } | null> {
   const {
     projectKey,
@@ -1327,7 +1328,8 @@ export async function createIssue(params: {
     issueTypeId,
     linkIssueKey,
     linkType,
-    versionIds
+    versionIds,
+    sprintId
   } = params
   try {
     const adf = buildADFBodyFromText(description)
@@ -1354,6 +1356,11 @@ export async function createIssue(params: {
     // Set fix versions if provided (array of version IDs)
     if (Array.isArray(versionIds) && versionIds.length > 0) {
       fields.fixVersions = versionIds.map((id) => ({ id: String(id) }))
+    }
+
+    // Set sprint if provided (customfield_10020). Jira expects an array of sprint objects with id.
+    if (sprintId && String(sprintId).trim()) {
+      fields.customfield_10020 = [{ id: String(sprintId).trim() }]
     }
 
     if (

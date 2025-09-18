@@ -585,6 +585,7 @@ export async function createIssueClient(params: {
   linkIssueKey?: string
   linkType?: string
   versionIds?: string[]
+  sprintId?: string
 }): Promise<{ key: string } | null> {
   try {
     const response = await fetch(`/api/issues`, {
