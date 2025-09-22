@@ -127,6 +127,96 @@ export function IssueEditModal({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isOpen])
   // Nested component for individual comment with actions
+  // Helper: extract MP4 urls from HTML or plain text
+  const extractMp4Urls = (input: string | undefined | null): string[] => {
+    if (!input) return []
+    const urls = new Set<string>()
+
+    // 1) From href/src attributes with absolute http(s) URLs ending in .mp4
+    const hrefAbs = /href=["'](https?:\/\/[^"']+?\.mp4)(?:\?[^"']*)?["']/gi
+    let m: RegExpExecArray | null
+    while ((m = hrefAbs.exec(input))) {
+      urls.add(m[1])
+    }
+    const srcAbs = /src=["'](https?:\/\/[^"']+?\.mp4)(?:\?[^"']*)?["']/gi
+    while ((m = srcAbs.exec(input))) {
+      urls.add(m[1])
+    }
+
+    // 2) From href/src attributes with relative URLs ending in .mp4
+    const hrefRel = /href=["'](\/["']?[^"']*?\.mp4)(?:\?[^"']*)?["']/gi
+    while ((m = hrefRel.exec(input))) {
+      urls.add(m[1])
+    }
+    const srcRel = /src=["'](\/["']?[^"']*?\.mp4)(?:\?[^"']*)?["']/gi
+    while ((m = srcRel.exec(input))) {
+      urls.add(m[1])
+    }
+
+    // 3) From plain text absolute and relative URLs that end in .mp4
+    const urlAbs = /(https?:\/\/[^\s"'>]+?\.mp4)(?:\?[^\s"'>]*)?/gi
+    let n: RegExpExecArray | null
+    while ((n = urlAbs.exec(input))) {
+      urls.add(n[1])
+    }
+    const urlRel = /(\/[^\s"'>]+?\.mp4)(?:\?[^\s"'>]*)?/gi
+    while ((n = urlRel.exec(input))) {
+      urls.add(n[1])
+    }
+
+    // 4) Special case: Jira ADF renders attachments as <img> with alt containing the filename.
+    // If the <img> alt ends with .mp4, treat its src as a playable video URL even if src lacks .mp4.
+    const imgTagRegex = /<img\b[^>]*>/gi
+    let t: RegExpExecArray | null
+    while ((t = imgTagRegex.exec(input))) {
+      const tag = t[0]
+      const altMatch = tag.match(/alt=["']([^"']+)["']/i)
+      if (altMatch && /\.mp4$/i.test(altMatch[1].trim())) {
+        const srcMatch = tag.match(/src=["']([^"']+)["']/i)
+        if (srcMatch) {
+          urls.add(srcMatch[1])
+        }
+      }
+    }
+
+    return Array.from(urls)
+  }
+
+  const filenameFromUrl = (url: string) => {
+    try {
+      const u = new URL(url)
+      const pathname = u.pathname
+      const base = pathname.split('/').pop() || 'video.mp4'
+      return decodeURIComponent(base)
+    } catch {
+      return url.split('/').pop() || 'video.mp4'
+    }
+  }
+
+  const VideoThumb = ({ url }: { url: string }) => {
+    const name = filenameFromUrl(url)
+    return (
+      <button
+        type='button'
+        className='group relative inline-flex items-center justify-center rounded-md border bg-black/40 overflow-hidden w-40 h-24'
+        onClick={() => setPreview({ url, filename: name, mime: 'video/mp4' })}
+        title={`Play ${name}`}
+      >
+        <video
+          className='w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity'
+          muted
+          preload='metadata'
+          src={url + '#t=0.1'}
+        />
+        <span className='absolute inset-0 flex items-center justify-center'>
+          <span className='inline-flex items-center justify-center rounded-full bg-black/70 text-white p-2 shadow-lg'>
+            ▶
+          </span>
+        </span>
+      </button>
+    )
+  }
+
   function CommentItem({
     issueKey,
     comment,
@@ -143,6 +233,69 @@ export function IssueEditModal({
     const [saving, setSaving] = useState(false)
     const [err, setErr] = useState<string | null>(null)
     const [copiedCommentLink, setCopiedCommentLink] = useState(false)
+
+    // Inline video enhancement for rendered comment HTML
+    const commentHtmlRef = useRef<HTMLDivElement | null>(null)
+    useEffect(() => {
+      const root = commentHtmlRef.current
+      if (!root) return
+
+      const makeThumb = (url: string) => {
+        const name = filenameFromUrl(url)
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className =
+          'group relative inline-flex items-center justify-center rounded-md border bg-black/40 overflow-hidden w-40 h-24 align-middle'
+        btn.title = `Play ${name}`
+        btn.setAttribute('data-inline-video', 'true')
+
+        const vid = document.createElement('video')
+        vid.className =
+          'w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity'
+        vid.muted = true
+        vid.playsInline = true
+        vid.preload = 'metadata'
+        vid.src = url + '#t=0.1'
+
+        const overlay = document.createElement('span')
+        overlay.className = 'absolute inset-0 flex items-center justify-center'
+        const inner = document.createElement('span')
+        inner.className =
+          'inline-flex items-center justify-center rounded-full bg-black/70 text-white p-2 shadow-lg'
+        inner.textContent = '▶'
+        overlay.appendChild(inner)
+
+        btn.appendChild(vid)
+        btn.appendChild(overlay)
+        btn.addEventListener('click', () => {
+          setPreview({ url, filename: name, mime: 'video/mp4' })
+        })
+        return btn
+      }
+
+      // Replace Jira ADF images that actually represent MP4s
+      const imgs = Array.from(
+        root.querySelectorAll('img[alt$=".mp4" i]')
+      ) as HTMLImageElement[]
+      imgs.forEach((img) => {
+        const src = img.getAttribute('src')
+        if (!src) return
+        const btn = makeThumb(src)
+        img.replaceWith(btn)
+      })
+
+      // Replace anchor links that point to MP4s
+      const anchors = Array.from(
+        root.querySelectorAll('a[href]')
+      ) as HTMLAnchorElement[]
+      anchors.forEach((a) => {
+        const href = a.getAttribute('href') || ''
+        if (/\.mp4(\?|$)/i.test(href)) {
+          const btn = makeThumb(href)
+          a.replaceWith(btn)
+        }
+      })
+    }, [comment.bodyHtml, comment.body])
 
     // Mention autocomplete state for edit textarea
     const editTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -414,18 +567,21 @@ export function IssueEditModal({
               </div>
             </div>
           ) : (
-            <div
-              className='mt-1 text-sm jira-description prose prose-invert max-w-none'
-              dangerouslySetInnerHTML={{
-                __html:
-                  comment.bodyHtml ||
-                  (comment.body || '')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/\n/g, '<br />')
-              }}
-            />
+            <>
+              <div
+                ref={commentHtmlRef}
+                className='mt-1 text-sm jira-description prose prose-invert max-w-none'
+                dangerouslySetInnerHTML={{
+                  __html:
+                    comment.bodyHtml ||
+                    (comment.body || '')
+                      .replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/\n/g, '<br />')
+                }}
+              />
+            </>
           )}
         </div>
       </div>
@@ -987,6 +1143,18 @@ export function IssueEditModal({
                         }}
                       />
                     </div>
+                    {(() => {
+                      const vids = extractMp4Urls(
+                        displayIssue.descriptionHtml || displayIssue.description
+                      )
+                      return vids.length ? (
+                        <div className='mt-3 flex flex-wrap gap-2'>
+                          {vids.map((u) => (
+                            <VideoThumb key={u} url={u} />
+                          ))}
+                        </div>
+                      ) : null
+                    })()}
                     <style jsx>{`
                       .jira-description {
                         --adf-table-border: rgba(0, 0, 0, 0.45);
@@ -1905,8 +2073,17 @@ export function IssueEditModal({
                 </DialogTitle>
               </DialogHeader>
               <div className='relative w-full h-full'>
-                {(preview.mime && preview.mime.toLowerCase().includes('pdf')) ||
-                /\.pdf$/i.test(preview.filename) ? (
+                {preview.mime &&
+                preview.mime.toLowerCase().includes('video') ? (
+                  <video
+                    src={preview.url}
+                    controls
+                    autoPlay
+                    className='w-full h-full object-contain bg-black'
+                  />
+                ) : (preview.mime &&
+                    preview.mime.toLowerCase().includes('pdf')) ||
+                  /\.pdf$/i.test(preview.filename) ? (
                   <iframe
                     src={preview.url}
                     className='w-full h-full rounded-none border-0'
