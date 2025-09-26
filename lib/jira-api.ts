@@ -1,10 +1,8 @@
-import type {
-  JiraIssue,
-  JiraProject,
-  JiraUser,
-  FilterOptions
-} from '@/types/jira'
 import { cookies } from 'next/headers'
+import { JiraUser } from '@/types/JiraUser'
+import { JiraProject } from '@/types/JiraProject'
+import { FilterOptions } from '@/types/FilterOptions'
+import { JiraIssue } from '@/types/JiraIssue'
 
 const JIRA_BASE_URL =
   process.env.JIRA_BASE_URL || 'https://your-domain.atlassian.net'
@@ -786,7 +784,7 @@ export async function getIssueDetails(issueKey: string) {
     const commentsData = await jiraFetch(
       `/issue/${issueKey}/comment?orderBy=created&maxResults=100`
     )
-    console.log('commentsData: ', commentsData)
+
     const comments = (commentsData?.comments || [])
       .map((c: any) => ({
         id: String(c.id),
@@ -967,7 +965,7 @@ export async function getIssues(
       } else if (hasBacklog) {
         jql += ` AND sprint is EMPTY`
       } else if (namedSprints.length > 0) {
-        jql += ` AND sprint IN (${namedSprints.map((s) => `"${s}"`).join(',')})`
+        jql += ` AND sprint IN (${namedSprints.map((s) => `"${s}"`).join(',')}) order by created`
       }
     }
 
@@ -1036,21 +1034,18 @@ export async function getIssues(
 
     console.log(`Fetching ALL issues for JQL: ${jql}`)
 
-    // Fetch ALL issues with direct pagination (not using fetchAllPaginated)
-    // because Jira search API has a different response structure
-    const allIssues: any[] = []
-    let startAt = 0
-    const maxResults = 100
+    // Fetch ALL issues using nextPageToken pagination from Jira Search API
+    const allIssues: JiraIssue[] = []
+    let nextPageToken: string | undefined = undefined
     let total = 0
 
     do {
+      const url = `/search/jql?jql=${encodeURIComponent(jql)}&fields=*all${nextPageToken ? `&nextPageToken=${encodeURIComponent(nextPageToken)}` : ''}`
       console.log(
-        `Fetching issues batch: startAt=${startAt}, maxResults=${maxResults}`
+        `Fetching issues batch using ${nextPageToken ? 'nextPageToken' : 'initial'} request`
       )
 
-      const data = await jiraFetch(
-        `/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=*all`
-      )
+      const data = await jiraFetch(url)
 
       if (!data || !data.issues) {
         console.log('No data or issues returned, breaking pagination loop')
@@ -1058,20 +1053,76 @@ export async function getIssues(
       }
 
       console.log(`Received ${data.issues.length} issues in this batch`)
-      console.log(`Total available: ${data.total}`)
+      if (typeof data.total === 'number') {
+        console.log(`Total available: ${data.total}`)
+      }
 
-      allIssues.push(...data.issues)
-      total = data.total
-      startAt += data.issues.length
+      const isLastPage: boolean = data.isLast === true
 
-      console.log(
-        `Fetched ${data.issues.length} issues. Total so far: ${allIssues.length}/${total}`
+      // Map raw API issues to JiraIssue objects
+      const mappedBatch: JiraIssue[] = data.issues.map(
+        (issue: any, idx: number) => ({
+          id: issue.id,
+          key: issue.key,
+          summary: issue.fields.summary,
+          description: extractTextFromADF(issue.fields.description),
+          descriptionHtml: adfToHtml(
+            issue.fields.description,
+            issue.fields.attachment,
+            issue.key
+          ),
+          status: issue.fields.status,
+          priority: issue.fields.priority,
+          assignee: issue.fields.assignee,
+          reporter: issue.fields.reporter,
+          issuetype: issue.fields.issuetype,
+          created: issue.fields.created,
+          updated: issue.fields.updated,
+          duedate: issue.fields.duedate,
+          labels: issue.fields.labels || [],
+          components: issue.fields.components || [],
+          sprint: issue.fields.customfield_10020
+            ? {
+                id: issue.fields.customfield_10020[0]?.id,
+                name: issue.fields.customfield_10020[0]?.name,
+                state: issue.fields.customfield_10020[0]?.state
+              }
+            : undefined,
+          fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
+            id: String(v.id),
+            name: v.name,
+            released: Boolean(v.released),
+            archived: Boolean(v.archived)
+          })),
+          // isLast is only meaningful on the last issue of the last page
+          isLast:
+            isLastPage && idx === data.issues.length - 1 ? true : undefined,
+          // nextPageToken is only set on the last item of a non-final page
+          nextPageToken:
+            !isLastPage && idx === data.issues.length - 1
+              ? data.nextPageToken
+              : undefined
+        })
       )
 
-      // Break if we got fewer results than requested (last page)
-      if (data.issues.length < maxResults) {
-        console.log(
-          'Received fewer issues than requested, this was the last page'
+      allIssues.push(...mappedBatch)
+      total = data.total ?? total
+
+      console.log(
+        `Fetched ${data.issues.length} issues. Total so far: ${allIssues.length}${typeof total === 'number' ? `/${total}` : ''}`
+      )
+
+      if (isLastPage) {
+        console.log('Reached last page of results (isLast=true)')
+        break
+      }
+
+      // Prepare next page token; if absent while not last, break to avoid infinite loop
+      if (data.nextPageToken) {
+        nextPageToken = data.nextPageToken
+      } else {
+        console.warn(
+          'No nextPageToken provided but isLast=false. Stopping to avoid infinite loop.'
         )
         break
       }
@@ -1083,46 +1134,13 @@ export async function getIssues(
         )
         break
       }
-    } while (allIssues.length < total && startAt < total)
+    } while (true)
 
     console.log(
       `Completed fetching ALL ${allIssues.length} issues for selected sprint(s)`
     )
 
-    return allIssues.map((issue: any) => ({
-      id: issue.id,
-      key: issue.key,
-      summary: issue.fields.summary,
-      description: extractTextFromADF(issue.fields.description),
-      descriptionHtml: adfToHtml(
-        issue.fields.description,
-        issue.fields.attachment,
-        issue.key
-      ),
-      status: issue.fields.status,
-      priority: issue.fields.priority,
-      assignee: issue.fields.assignee,
-      reporter: issue.fields.reporter,
-      issuetype: issue.fields.issuetype,
-      created: issue.fields.created,
-      updated: issue.fields.updated,
-      duedate: issue.fields.duedate,
-      labels: issue.fields.labels || [],
-      components: issue.fields.components || [],
-      sprint: issue.fields.customfield_10020
-        ? {
-            id: issue.fields.customfield_10020[0]?.id,
-            name: issue.fields.customfield_10020[0]?.name,
-            state: issue.fields.customfield_10020[0]?.state
-          }
-        : undefined,
-      fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
-        id: String(v.id),
-        name: v.name,
-        released: Boolean(v.released),
-        archived: Boolean(v.archived)
-      }))
-    }))
+    return allIssues
   } catch (error) {
     console.error('Error fetching issues:', error)
     return []

@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { IssueCard } from '@/components/issue-card'
 import { FilterSidebar } from '@/components/filter-sidebar'
 import { normalizeStatusName } from '@/lib/utils'
-import type { JiraIssue, FilterOptions, BoardColumn } from '@/types/jira'
 import { getCachedData, preloadIssues } from '@/lib/client-api'
+import { JiraIssue } from '@/types/JiraIssue'
+import { FilterOptions } from '@/types/FilterOptions'
+import { BoardColumn } from '@/types/BoardColumn'
 
 interface KanbanBoardProps {
   issues: JiraIssue[]

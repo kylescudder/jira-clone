@@ -24,12 +24,6 @@ import {
   fetchIssueDetails,
   prefetchProjectLookups
 } from '@/lib/client-api'
-import type {
-  JiraIssue,
-  JiraProject,
-  JiraUser,
-  FilterOptions
-} from '@/types/jira'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -41,6 +35,10 @@ import type { TrackerStatus } from '@/components/loading-tracker'
 import { NewIssueModal } from '@/components/new-issue-modal'
 import { isEditableTarget } from '@/lib/utils'
 import { STORAGE_KEYS } from '@/lib/constants'
+import { JiraIssue } from '@/types/JiraIssue'
+import { JiraProject } from '@/types/JiraProject'
+import { JiraUser } from '@/types/JiraUser'
+import { FilterOptions } from '@/types/FilterOptions'
 
 interface Sprint {
   id: string

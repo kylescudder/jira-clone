@@ -35,7 +35,6 @@ import {
   fetchProjectVersions,
   fetchProjectSprints
 } from '@/lib/client-api'
-import type { JiraUser } from '@/types/jira'
 import { useToast } from '@/lib/use-toast'
 import { getInitials, isEditableTarget, decodeHtmlEntities } from '@/lib/utils'
 

@@ -1,12 +1,10 @@
-import type {
-  JiraIssue,
-  JiraProject,
-  JiraUser,
-  FilterOptions
-} from '@/types/jira'
-
 // Simple client-side cache using localStorage with TTL
 // Note: Only available in the browser. Always guard against SSR.
+import { JiraUser } from '@/types/JiraUser'
+import { JiraProject } from '@/types/JiraProject'
+import { FilterOptions } from '@/types/FilterOptions'
+import { JiraIssue } from '@/types/JiraIssue'
+
 const CACHE_PREFIX = 'jira-clone-cache:'
 
 type CacheEntry<T> = { data: T; ts: number; ttl: number }

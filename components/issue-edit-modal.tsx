@@ -79,12 +79,6 @@ import {
   getInitials,
   decodeHtmlEntities
 } from '@/lib/utils'
-import type {
-  JiraIssue,
-  JiraUser,
-  JiraIssueDetails,
-  JiraComment
-} from '@/types/jira'
 
 interface IssueEditModalProps {
   issue: JiraIssue | null

@@ -20,9 +20,10 @@ import {
   getStatusGroupRank,
   isEditableTarget
 } from '@/lib/utils'
-import type { FilterOptions, JiraIssue } from '@/types/jira'
 import { KeyboardKey } from '@/components/ui/keyboard-key'
 import { STORAGE_KEYS } from '@/lib/constants'
+import { FilterOptions } from '@/types/FilterOptions'
+import { JiraIssue } from '@/types/JiraIssue'
 
 interface FilterSidebarProps {
   filters: FilterOptions

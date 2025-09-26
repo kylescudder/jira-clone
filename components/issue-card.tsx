@@ -5,8 +5,7 @@ import { CalendarDays, Clock, User, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { normalizeStatusName, getStatusColor } from '@/lib/utils'
-import type { JiraIssue } from '@/types/jira'
+import { JiraIssue } from '@/types/JiraIssue'
 
 interface IssueCardProps {
   issue: JiraIssue
