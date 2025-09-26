@@ -99,7 +99,6 @@ export default function HomePage() {
     }
   )
   const [loading, setLoading] = useState(false)
-  const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null)
 
@@ -339,7 +338,6 @@ export default function HomePage() {
     const initializeApp = async () => {
       try {
         setLoading(true)
-        setLoadingMessage('Loading projects...')
         setError(null)
 
         openTracker(2, 'Loading projects...')
@@ -369,7 +367,6 @@ export default function HomePage() {
         failTracker('Failed to load initial data')
       } finally {
         setLoading(false)
-        setLoadingMessage('')
       }
     }
 
@@ -410,7 +407,6 @@ export default function HomePage() {
       const cached = getCachedData<Sprint[]>(`sprints:${projectKey}`) || []
       if (cached.length) setSprints(cached)
 
-      setLoadingMessage('Loading sprints...')
       console.log(`Loading sprints for project: ${projectKey}`)
 
       openTracker(1, 'Loading sprints...')
@@ -456,9 +452,6 @@ export default function HomePage() {
 
     try {
       setLoading(true)
-      setLoadingMessage(
-        `Loading issues for ${sprintsForQuery.length} sprint(s)...`
-      )
       setError(null)
 
       openTracker(
@@ -493,7 +486,6 @@ export default function HomePage() {
       failTracker('Failed to load issues from Jira')
     } finally {
       setLoading(false)
-      setLoadingMessage('')
     }
   }
 

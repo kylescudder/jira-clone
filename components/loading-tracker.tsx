@@ -18,8 +18,6 @@ interface LoadingTrackerProps {
 
 export function LoadingTracker({
   visible,
-  current,
-  total,
   message,
   status = 'loading',
   onClose,
@@ -35,8 +33,6 @@ export function LoadingTracker({
 
   if (!visible) return null
 
-  const percent =
-    total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0
   const isDone = status === 'success'
   const isError = status === 'error'
 
@@ -72,14 +68,6 @@ export function LoadingTracker({
           <div className='text-xs text-gray-600 dark:text-gray-400 mt-0.5 truncate'>
             {message || (isDone ? 'Finished loading' : 'Please wait...')}
           </div>
-          {!isDone && !isError && (
-            <div className='mt-2 h-2 w-full rounded bg-gray-200 dark:bg-gray-800 overflow-hidden'>
-              <div
-                className='h-full bg-blue-500 transition-all'
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          )}
         </div>
         <button
           aria-label='Close'
@@ -89,11 +77,6 @@ export function LoadingTracker({
           <X className='h-4 w-4' />
         </button>
       </div>
-      {!isDone && !isError && (
-        <div className='px-3 pb-3 text-[11px] text-gray-500 dark:text-gray-400'>
-          {Math.min(current, total)} of {total} • {percent}%
-        </div>
-      )}
     </div>
   )
 }
