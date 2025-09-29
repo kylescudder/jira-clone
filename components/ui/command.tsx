@@ -57,10 +57,20 @@ CommandInput.displayName = CommandPrimitive.Input.displayName
 const CommandList = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
->(({ className, ...props }, ref) => (
+>(({ className, style, onWheel, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
-    className={cn('max-h-[300px] overflow-x-hidden overflow-y-auto', className)}
+    className={cn(
+      'max-h-[300px] overflow-x-hidden overflow-y-auto overscroll-contain pointer-events-auto touch-pan-y',
+      className
+    )}
+    // Enable momentum scrolling on iOS and improve touchpad gestures
+    style={{ WebkitOverflowScrolling: 'touch', ...(style as any) }}
+    // Prevent wheel events from bubbling to parent overlays which can block scrolling or close popovers
+    onWheel={(e) => {
+      e.stopPropagation()
+      onWheel?.(e)
+    }}
     {...props}
   />
 ))

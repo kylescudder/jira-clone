@@ -710,7 +710,7 @@ export default function HomePage() {
                   <div className='min-w-0 max-w-full'>
                     <select
                       id='project-select'
-                      className='border-input bg-background text-foreground focus:ring-ring w-full sm:w-auto sm:max-w-[50vw] md:max-w-[320px] lg:max-w-[420px] truncate rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
+                      className='border-input bg-background text-foreground focus:ring-ring w-full sm:w-auto sm:max-w-[50vw] md:max-w-[320px] lg:max-w-[420px] truncate rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
                       value={selectedProject}
                       onChange={(e) => handleProjectChange(e.target.value)}
                       disabled={loading}

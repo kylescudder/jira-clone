@@ -18,7 +18,6 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Command,
   CommandEmpty,
@@ -46,11 +45,7 @@ import {
   Component,
   ChevronDown,
   RefreshCw,
-  Link as LinkIcon,
-  ChevronsUpDown,
-  Check,
-  Eye,
-  EyeOff
+  Link as LinkIcon
 } from 'lucide-react'
 import {
   Collapsible,
@@ -70,6 +65,8 @@ import {
   updateIssueFixVersions,
   fetchIssue
 } from '@/lib/client-api'
+import { linkIssueClient } from '@/lib/client-api'
+import { LinkIssuePicker } from '@/components/link-issue-picker'
 import { getCachedData } from '@/lib/client-api'
 import {
   normalizeStatusName,
@@ -79,6 +76,7 @@ import {
   getInitials,
   decodeHtmlEntities
 } from '@/lib/utils'
+import { VersionsMultiSelect } from '@/components/versions-multi-select'
 
 interface IssueEditModalProps {
   issue: JiraIssue | null
@@ -298,6 +296,7 @@ export function IssueEditModal({
     const [editMentionStart, setEditMentionStart] = useState<number | null>(
       null
     )
+    const [editMentionIndex, setEditMentionIndex] = useState(0)
 
     const detectMentionTrigger = (value: string, caret: number) => {
       const prefix = value.slice(0, caret)
@@ -391,7 +390,7 @@ export function IssueEditModal({
               {/* Copy comment link */}
               <button
                 type='button'
-                className={`${copiedCommentLink ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-500 inline-flex items-center gap-1 border border-border rounded px-2 py-0.5 hover:bg-muted`}
+                className={`${copiedCommentLink ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-500 inline-flex items-center gap-1 border border-border rounded-md px-2 py-0.5 hover:bg-muted`}
                 title='Copy comment link'
                 aria-label='Copy comment link'
                 onClick={async (e) => {
@@ -473,6 +472,7 @@ export function IssueEditModal({
                     setEditMentionOpen(true)
                     setEditMentionQuery(t.query)
                     setEditMentionStart(t.start)
+                    setEditMentionIndex(0)
                   } else {
                     setEditMentionOpen(false)
                     setEditMentionQuery('')
@@ -480,8 +480,42 @@ export function IssueEditModal({
                   }
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Escape' && editMentionOpen) {
-                    setEditMentionOpen(false)
+                  if (editMentionOpen) {
+                    const candidates = (projectUsers || [])
+                      .filter((u) =>
+                        (u.displayName || '')
+                          .toLowerCase()
+                          .includes((editMentionQuery || '').toLowerCase())
+                      )
+                      .slice(0, 8)
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      setEditMentionIndex((i) =>
+                        Math.min(candidates.length - 1, i + 1)
+                      )
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setEditMentionIndex((i) => Math.max(0, i - 1))
+                    } else if (e.key === 'Enter') {
+                      const ta = editTextareaRef.current
+                      if (ta && candidates.length) {
+                        const u = candidates[editMentionIndex] || candidates[0]
+                        e.preventDefault()
+                        insertMentionTokenAtCaret(
+                          ta,
+                          u.displayName,
+                          u.accountId,
+                          editMentionStart
+                        )
+                        setEditMentionOpen(false)
+                        setEditMentionQuery('')
+                        setEditMentionStart(null)
+                        setEditMentionIndex(0)
+                      }
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setEditMentionOpen(false)
+                    }
                   }
                 }}
                 onClick={(e) => {
@@ -510,11 +544,12 @@ export function IssueEditModal({
                         .includes((editMentionQuery || '').toLowerCase())
                     )
                     .slice(0, 8)
-                    .map((u) => (
+                    .map((u, idx) => (
                       <button
                         key={u.accountId}
                         type='button'
-                        className='flex w-full items-center gap-2 px-2 py-1.5 hover:bg-muted text-left'
+                        className={`flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-accent hover:text-accent-foreground ${idx === editMentionIndex ? 'bg-accent text-accent-foreground' : ''}`}
+                        onMouseEnter={() => setEditMentionIndex(idx)}
                         onMouseDown={(ev) => ev.preventDefault()}
                         onClick={() => {
                           const ta = editTextareaRef.current
@@ -611,12 +646,14 @@ export function IssueEditModal({
   const [postingComment, setPostingComment] = useState(false)
   const [commentError, setCommentError] = useState<string | null>(null)
   const [commentSuccess, setCommentSuccess] = useState<string | null>(null)
+  const [planningOpen, setPlanningOpen] = useState(false)
 
   // Mention autocomplete for new comment
   const newTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [newMentionOpen, setNewMentionOpen] = useState(false)
   const [newMentionQuery, setNewMentionQuery] = useState('')
   const [newMentionStart, setNewMentionStart] = useState<number | null>(null)
+  const [newMentionIndex, setNewMentionIndex] = useState(0)
 
   const detectNewMentionTrigger = (value: string, caret: number) => {
     const prefix = value.slice(0, caret)
@@ -651,8 +688,11 @@ export function IssueEditModal({
   }
   const [copiedId, setCopiedId] = useState(false)
   const [copiedIssueLink, setCopiedIssueLink] = useState(false)
-  const [versionsOpen, setVersionsOpen] = useState(false)
-  const [showReleased, setShowReleased] = useState(false)
+  // Link to Issue (post-creation)
+  const [linkIssueKey, setLinkIssueKey] = useState<string>('')
+  const [linkType, setLinkType] = useState<string>('Relates')
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   useEffect(() => {
     if (issue && isOpen) {
@@ -1014,7 +1054,7 @@ export function IssueEditModal({
               {/* Copy issue link button */}
               <button
                 type='button'
-                className={`${copiedIssueLink ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-500 inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded px-2 py-1 hover:bg-muted`}
+                className={`${copiedIssueLink ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-500 inline-flex items-center gap-1 text-xs text-muted-foreground border border-border rounded-md px-2 py-1 hover:bg-muted`}
                 title='Copy issue link'
                 aria-label='Copy issue link'
                 onClick={async (e) => {
@@ -1259,20 +1299,127 @@ export function IssueEditModal({
                 </Card>
               )}
 
-              {/* Attachments */}
+              {/* Releases & Links (collapsible) */}
               <Card>
                 <CardHeader>
-                  <CardTitle className='flex items-center justify-between text-lg'>
-                    <span>Attachments</span>
-                    {detailsLoading && (
-                      <span className='text-muted-foreground text-sm flex items-center gap-2'>
-                        <Loader2 className='h-4 w-4 animate-spin' /> Loading...
-                      </span>
-                    )}
-                  </CardTitle>
+                  <Collapsible
+                    open={planningOpen}
+                    onOpenChange={setPlanningOpen}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button className='w-full h-10 flex items-center justify-between text-left focus:outline-none focus:ring-0'>
+                        <CardTitle className='flex items-center justify-between text-lg w-full leading-none'>
+                          <span className='flex items-center gap-2'>
+                            Releases & Links
+                          </span>
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${planningOpen ? 'rotate-180' : ''}`}
+                          />
+                        </CardTitle>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className='pt-4 space-y-6'>
+                        {/* Fix Versions Section */}
+                        <div className='space-y-3'>
+                          <div className='flex items-center gap-2 text-sm font-medium'>
+                            <Tag className='h-4 w-4' />
+                            <span>Fix Versions</span>
+                          </div>
+                          {projectVersions.length === 0 ? (
+                            <div className='text-muted-foreground text-sm flex items-center gap-2'>
+                              <Loader2 className='h-4 w-4 animate-spin' />{' '}
+                              Loading versions…
+                            </div>
+                          ) : (
+                            <VersionsMultiSelect
+                              id='edit-releases'
+                              versions={projectVersions}
+                              selectedIds={selectedVersionIds}
+                              onChange={setSelectedVersionIds}
+                              showBadgesSummary
+                            />
+                          )}
+                        </div>
+
+                        {/* Link to Issue (post-creation) */}
+                        <div className='space-y-3'>
+                          <div className='flex items-center gap-2 text-sm font-medium'>
+                            <LinkIcon className='h-4 w-4' />
+                            <span>Link to Issue</span>
+                          </div>
+                          {linkError && (
+                            <Alert variant='destructive'>
+                              <AlertDescription>{linkError}</AlertDescription>
+                            </Alert>
+                          )}
+                          <LinkIssuePicker
+                            projectKey={projectKey}
+                            linkIssueKey={linkIssueKey}
+                            onLinkIssueKeyChange={setLinkIssueKey}
+                            linkType={linkType}
+                            onLinkTypeChange={setLinkType}
+                            disabled={linkLoading}
+                          />
+                          <div className='flex justify-end'>
+                            <Button
+                              variant='default'
+                              disabled={
+                                !linkIssueKey.trim() || linkLoading || !issue
+                              }
+                              onClick={async () => {
+                                if (!issue) return
+                                setLinkError(null)
+                                setLinkLoading(true)
+                                const ok = await linkIssueClient({
+                                  issueKey: issue.key,
+                                  toIssueKey: linkIssueKey.trim(),
+                                  linkType
+                                })
+                                setLinkLoading(false)
+                                if (!ok) {
+                                  setLinkError(
+                                    'Failed to create link. Please try again.'
+                                  )
+                                  return
+                                }
+                                // reset
+                                setLinkIssueKey('')
+                                setLinkType('Relates')
+                                try {
+                                  await loadDetails()
+                                } catch (_) {
+                                  // ignore refresh error
+                                }
+                                onUpdate()
+                              }}
+                            >
+                              {linkLoading ? (
+                                <span className='inline-flex items-center gap-2'>
+                                  <Loader2 className='h-4 w-4 animate-spin' />{' '}
+                                  Linking...
+                                </span>
+                              ) : (
+                                'Link Issue'
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </CardHeader>
-                <CardContent>
-                  {details && details.attachments.length > 0 ? (
+              </Card>
+
+              {/* Attachments */}
+              {details && details.attachments.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className='flex items-center justify-between text-lg'>
+                      <span>Attachments</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
                     <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
                       {details.attachments.map((att) => {
                         const previewUrl = `/api/issues/${issue.key}/attachments/${att.id}?disposition=inline`
@@ -1284,13 +1431,13 @@ export function IssueEditModal({
                         return (
                           <div
                             key={att.id}
-                            className='border rounded p-3 flex items-center gap-3 bg-muted/30'
+                            className='border rounded-md p-3 flex items-center gap-3 bg-muted/30'
                           >
                             {att.isImage ? (
                               <img
                                 src={previewUrl}
                                 alt={att.filename}
-                                className='h-16 w-16 object-cover rounded border cursor-pointer hover:opacity-90'
+                                className='h-16 w-16 object-cover rounded-md border cursor-pointer hover:opacity-90'
                                 onClick={() =>
                                   setPreview({
                                     url: previewUrl,
@@ -1301,7 +1448,7 @@ export function IssueEditModal({
                               />
                             ) : (
                               <div
-                                className={`h-16 w-16 flex items-center justify-center rounded border bg-white text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                className={`h-16 w-16 flex items-center justify-center rounded-md border bg-white text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                                 onClick={() => {
                                   if (canPreview)
                                     setPreview({
@@ -1332,15 +1479,9 @@ export function IssueEditModal({
                         )
                       })}
                     </div>
-                  ) : (
-                    <div className='text-muted-foreground text-sm'>
-                      {detailsLoading
-                        ? 'Loading attachments...'
-                        : 'No attachments'}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               {/* Comments */}
               <Card>
@@ -1389,6 +1530,7 @@ export function IssueEditModal({
                                 setNewMentionOpen(true)
                                 setNewMentionQuery(t.query)
                                 setNewMentionStart(t.start)
+                                setNewMentionIndex(0)
                               } else {
                                 setNewMentionOpen(false)
                                 setNewMentionQuery('')
@@ -1396,8 +1538,46 @@ export function IssueEditModal({
                               }
                             }}
                             onKeyDown={(e) => {
-                              if (e.key === 'Escape' && newMentionOpen) {
-                                setNewMentionOpen(false)
+                              if (newMentionOpen) {
+                                const candidates = (projectUsers || [])
+                                  .filter((u) =>
+                                    (u.displayName || '')
+                                      .toLowerCase()
+                                      .includes(
+                                        (newMentionQuery || '').toLowerCase()
+                                      )
+                                  )
+                                  .slice(0, 8)
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  setNewMentionIndex((i) =>
+                                    Math.min(candidates.length - 1, i + 1)
+                                  )
+                                } else if (e.key === 'ArrowUp') {
+                                  e.preventDefault()
+                                  setNewMentionIndex((i) => Math.max(0, i - 1))
+                                } else if (e.key === 'Enter') {
+                                  const ta = newTextareaRef.current
+                                  if (ta && candidates.length) {
+                                    const u =
+                                      candidates[newMentionIndex] ||
+                                      candidates[0]
+                                    e.preventDefault()
+                                    insertNewMentionTokenAtCaret(
+                                      ta,
+                                      u.displayName,
+                                      u.accountId,
+                                      newMentionStart
+                                    )
+                                    setNewMentionOpen(false)
+                                    setNewMentionQuery('')
+                                    setNewMentionStart(null)
+                                    setNewMentionIndex(0)
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  setNewMentionOpen(false)
+                                }
                               }
                             }}
                             onClick={(e) => {
@@ -1428,11 +1608,12 @@ export function IssueEditModal({
                                     )
                                 )
                                 .slice(0, 8)
-                                .map((u) => (
+                                .map((u, idx) => (
                                   <button
                                     key={u.accountId}
                                     type='button'
-                                    className='flex w-full items-center gap-2 px-2 py-1.5 hover:bg-muted text-left'
+                                    className={`flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-accent hover:text-accent-foreground ${idx === newMentionIndex ? 'bg-accent text-accent-foreground' : ''}`}
+                                    onMouseEnter={() => setNewMentionIndex(idx)}
                                     onMouseDown={(ev) => ev.preventDefault()}
                                     onClick={() => {
                                       const ta = newTextareaRef.current
@@ -1680,7 +1861,7 @@ export function IssueEditModal({
                               value={transition.id}
                             >
                               <span
-                                className={`inline-block rounded border px-2 py-0.5 text-xs ${getStatusColor(transition.name)}`}
+                                className={`inline-block rounded-md border px-2 py-0.5 text-xs ${getStatusColor(transition.name)}`}
                               >
                                 {decodeHtmlEntities(transition.name)}
                               </span>
@@ -1764,172 +1945,6 @@ export function IssueEditModal({
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Fix Versions Section */}
-              <Card>
-                <CardHeader className='pb-3'>
-                  <CardTitle className='flex items-center gap-2 text-sm'>
-                    <Tag className='h-4 w-4' />
-                    Fix Versions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-3'>
-                  {/* Current selection as badges */}
-                  <div className='flex flex-wrap gap-1'>
-                    {selectedVersionIds.length > 0 ? (
-                      projectVersions
-                        .filter((v) => selectedVersionIds.includes(v.id))
-                        .map((v) => (
-                          <Badge
-                            key={v.id}
-                            variant='secondary'
-                            className='text-xs'
-                          >
-                            {decodeHtmlEntities(v.name)}
-                          </Badge>
-                        ))
-                    ) : (
-                      <span className='text-muted-foreground text-sm'>
-                        No Release
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Dropdown multi-select for versions */}
-                  {projectVersions.length === 0 ? (
-                    <div className='text-muted-foreground text-sm flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' /> Loading
-                      versions…
-                    </div>
-                  ) : (
-                    <div className='space-y-2'>
-                      <Popover
-                        open={versionsOpen}
-                        onOpenChange={setVersionsOpen}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant='outline'
-                            role='combobox'
-                            aria-expanded={versionsOpen}
-                            className={`bg-background hover:bg-accent w-full justify-between ${selectedVersionIds.length === 0 ? 'text-muted-foreground' : ''}`}
-                          >
-                            <div className='flex items-center gap-2'>
-                              <Tag className='h-4 w-4 shrink-0' />
-                              {selectedVersionIds.length === 0
-                                ? 'Click to select version(s)...'
-                                : selectedVersionIds.length === 1
-                                  ? decodeHtmlEntities(
-                                      projectVersions.find(
-                                        (v) => v.id === selectedVersionIds[0]
-                                      )?.name || '1 selected'
-                                    )
-                                  : `${selectedVersionIds.length} versions selected`}
-                            </div>
-                            <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className='w-[90vw] sm:w-[400px] p-0'
-                          align='start'
-                        >
-                          <Command>
-                            <CommandInput
-                              placeholder='Search versions...'
-                              className='h-9'
-                            />
-
-                            {/* Visibility controls */}
-                            <div className='bg-muted/30 border-b px-3 py-2'>
-                              <div className='flex items-center justify-between'>
-                                <div className='text-muted-foreground text-xs font-medium'>
-                                  Showing{' '}
-                                  {
-                                    projectVersions.filter(
-                                      (v) =>
-                                        !v.archived &&
-                                        (showReleased || !v.released)
-                                    ).length
-                                  }{' '}
-                                  of{' '}
-                                  {
-                                    projectVersions.filter((v) => !v.archived)
-                                      .length
-                                  }{' '}
-                                  versions
-                                </div>
-                                <div className='flex items-center gap-2'>
-                                  <Checkbox
-                                    id='show-released'
-                                    checked={showReleased}
-                                    onCheckedChange={(checked) =>
-                                      setShowReleased(!!checked)
-                                    }
-                                  />
-                                  <Label
-                                    htmlFor='show-released'
-                                    className='flex cursor-pointer items-center gap-1 text-xs'
-                                  >
-                                    {showReleased ? (
-                                      <Eye className='h-3 w-3' />
-                                    ) : (
-                                      <EyeOff className='h-3 w-3' />
-                                    )}
-                                    Show released
-                                  </Label>
-                                </div>
-                              </div>
-                            </div>
-
-                            <CommandList>
-                              <CommandEmpty>No versions found.</CommandEmpty>
-                              <CommandGroup>
-                                {projectVersions
-                                  .filter(
-                                    (v) =>
-                                      !v.archived &&
-                                      (showReleased || !v.released)
-                                  )
-                                  .sort((a, b) => a.name.localeCompare(b.name))
-                                  .map((v) => (
-                                    <CommandItem
-                                      key={v.id}
-                                      value={v.name}
-                                      onSelect={() => {
-                                        setSelectedVersionIds((prev) => {
-                                          const set = new Set(prev)
-                                          if (set.has(v.id)) set.delete(v.id)
-                                          else set.add(v.id)
-                                          return Array.from(set)
-                                        })
-                                      }}
-                                      className='flex items-center justify-between py-2'
-                                    >
-                                      <div className='flex min-w-0 flex-1 items-center gap-2'>
-                                        <Check
-                                          className={`${selectedVersionIds.includes(v.id) ? 'text-primary opacity-100' : 'opacity-0'} h-4 w-4 shrink-0`}
-                                        />
-                                        <span className='truncate font-medium'>
-                                          {decodeHtmlEntities(v.name)}
-                                        </span>
-                                      </div>
-                                      <Badge
-                                        variant='outline'
-                                        className={`ml-2 shrink-0 text-xs ${v.released ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200'}`}
-                                      >
-                                        {v.released ? 'released' : 'unreleased'}
-                                      </Badge>
-                                    </CommandItem>
-                                  ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
                     </div>
                   )}
                 </CardContent>

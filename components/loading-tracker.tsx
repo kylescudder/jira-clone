@@ -71,7 +71,7 @@ export function LoadingTracker({
         </div>
         <button
           aria-label='Close'
-          className='ml-1 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800'
+          className='ml-1 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800'
           onClick={onClose}
         >
           <X className='h-4 w-4' />

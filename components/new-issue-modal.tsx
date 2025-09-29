@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, ChevronsUpDown, Check } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Loader2, ChevronsUpDown, Check, Eye, EyeOff, Tag } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -26,6 +28,7 @@ import {
   CommandList
 } from '@/components/ui/command'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { LinkIssuePicker } from '@/components/link-issue-picker'
 import {
   fetchProjectUsers,
   fetchProjectComponents,
@@ -37,6 +40,7 @@ import {
 } from '@/lib/client-api'
 import { useToast } from '@/lib/use-toast'
 import { getInitials, isEditableTarget, decodeHtmlEntities } from '@/lib/utils'
+import { VersionsMultiSelect } from '@/components/versions-multi-select'
 
 interface NewIssueModalProps {
   projectKey: string
@@ -80,7 +84,6 @@ export function NewIssueModal({
     Array<{ id: string; name: string; released?: boolean; archived?: boolean }>
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
-  const [versionsOpen, setVersionsOpen] = useState(false)
 
   // Sprints
   const [sprints, setSprints] = useState<
@@ -166,7 +169,6 @@ export function NewIssueModal({
     setLinkType('Relates')
     setIssueTypeId('')
     setSelectedVersionIds([])
-    setVersionsOpen(false)
     setSelectedSprintId('')
     setSprintOpen(false)
     setSuggestions([])
@@ -374,7 +376,7 @@ export function NewIssueModal({
                 placeholder='Describe the issue... (type @ to mention)'
                 rows={6}
                 disabled={loading}
-                className='border-input bg-background text-foreground w-full rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden min-h-[120px]'
+                className='border-input bg-background text-foreground w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden min-h-[120px]'
               />
 
               {mentionOpen && filteredUsers.length > 0 && (
@@ -417,7 +419,7 @@ export function NewIssueModal({
                   <button
                     type='button'
                     id='assignee'
-                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
                     disabled={loading}
                     aria-haspopup='listbox'
                     aria-expanded={assigneeOpen}
@@ -511,7 +513,7 @@ export function NewIssueModal({
                   <button
                     type='button'
                     id='issueType'
-                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
                     disabled={loading}
                     aria-haspopup='listbox'
                     aria-expanded={issueTypeOpen}
@@ -560,7 +562,7 @@ export function NewIssueModal({
                   <button
                     type='button'
                     id='component'
-                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
                     disabled={loading}
                     aria-haspopup='listbox'
                     aria-expanded={componentOpen}
@@ -609,7 +611,7 @@ export function NewIssueModal({
                   <button
                     type='button'
                     id='sprint'
-                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
                     disabled={loading}
                     aria-haspopup='listbox'
                     aria-expanded={sprintOpen}
@@ -679,216 +681,24 @@ export function NewIssueModal({
 
             <div className='space-y-2'>
               <Label htmlFor='releases'>Releases</Label>
-              <Popover open={versionsOpen} onOpenChange={setVersionsOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type='button'
-                    id='releases'
-                    className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
-                    disabled={loading}
-                    aria-haspopup='listbox'
-                    aria-expanded={versionsOpen}
-                  >
-                    <span className='truncate flex items-center gap-2'>
-                      {selectedVersionIds.length === 0
-                        ? 'Select releases'
-                        : `${selectedVersionIds.length} release${selectedVersionIds.length === 1 ? '' : 's'} selected`}
-                    </span>
-                    <ChevronsUpDown className='h-4 w-4 opacity-60' />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
-                  <Command>
-                    <CommandInput placeholder='Search releases...' />
-                    <CommandList>
-                      <CommandEmpty>No releases found.</CommandEmpty>
-                      <CommandGroup heading='Releases'>
-                        {versions.map((v) => {
-                          const checked = selectedVersionIds.includes(v.id)
-                          return (
-                            <CommandItem
-                              key={v.id}
-                              value={v.name}
-                              onSelect={() => {
-                                setSelectedVersionIds((prev) => {
-                                  const has = prev.includes(v.id)
-                                  if (has)
-                                    return prev.filter((id) => id !== v.id)
-                                  return [...prev, v.id]
-                                })
-                              }}
-                            >
-                              <span className='truncate'>
-                                {decodeHtmlEntities(v.name)}
-                              </span>
-                              {checked && (
-                                <Check className='ml-auto h-4 w-4 opacity-70' />
-                              )}
-                            </CommandItem>
-                          )
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          <div className='space-y-2'>
-            <Label htmlFor='linkIssueKey'>Link to issue (optional)</Label>
-            <div className='relative'>
-              <Input
-                id='linkIssueKey'
-                value={linkIssueKey}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setLinkIssueKey(val)
-                  setSuggestIndex(0)
-                  if (debounceTimer) {
-                    clearTimeout(debounceTimer)
-                    setDebounceTimer(null)
-                  }
-                  const trimmed = val.trim()
-                  if (!projectKey || trimmed.length < 6) {
-                    setSuggestions([])
-                    setSuggestOpen(false)
-                    return
-                  }
-                  const timer = setTimeout(async () => {
-                    setSuggestLoading(true)
-                    const list = await fetchIssueSuggestions(
-                      projectKey,
-                      trimmed
-                    )
-                    setSuggestions(list)
-                    setSuggestOpen(list.length > 0)
-                    setSuggestLoading(false)
-                  }, 300)
-                  setDebounceTimer(timer)
-                }}
-                onFocus={() => {
-                  if (suggestions.length > 0) setSuggestOpen(true)
-                }}
-                onKeyDown={(e) => {
-                  if (!suggestOpen) return
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault()
-                    setSuggestIndex((i) =>
-                      Math.min(suggestions.length - 1, i + 1)
-                    )
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault()
-                    setSuggestIndex((i) => Math.max(0, i - 1))
-                  } else if (e.key === 'Enter') {
-                    if (suggestions.length > 0) {
-                      e.preventDefault()
-                      const item = suggestions[suggestIndex] || suggestions[0]
-                      setLinkIssueKey(item.key)
-                      setSuggestOpen(false)
-                    }
-                  } else if (e.key === 'Escape') {
-                    setSuggestOpen(false)
-                  }
-                }}
-                placeholder='Type at least 6 characters of the issue key, e.g. MP5-12'
+              <VersionsMultiSelect
+                id='releases'
+                versions={versions}
+                selectedIds={selectedVersionIds}
+                onChange={setSelectedVersionIds}
                 disabled={loading}
               />
-              {linkIssueKey.trim().length < 6 && (
-                <div className='text-xs text-muted-foreground mt-1'>
-                  Type at least 6 characters to search (e.g., MP5-12).
-                </div>
-              )}
-              {suggestOpen && (
-                <div className='absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md'>
-                  {suggestLoading && (
-                    <div className='px-3 py-2 text-sm text-muted-foreground'>
-                      Loading...
-                    </div>
-                  )}
-                  {!suggestLoading && suggestions.length === 0 && (
-                    <div className='px-3 py-2 text-sm text-muted-foreground'>
-                      No results
-                    </div>
-                  )}
-                  {!suggestLoading &&
-                    suggestions.map((s, idx) => (
-                      <button
-                        key={s.key}
-                        type='button'
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${idx === suggestIndex ? 'bg-accent text-accent-foreground' : ''}`}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          setLinkIssueKey(s.key)
-                          setSuggestOpen(false)
-                        }}
-                      >
-                        <span className='font-medium'>{s.key}</span>
-                        <span className='ml-2 text-muted-foreground truncate inline-block max-w-[70%] align-middle'>
-                          {decodeHtmlEntities(s.summary)}
-                        </span>
-                      </button>
-                    ))}
-                </div>
-              )}
             </div>
           </div>
 
-          <div className='space-y-2'>
-            <Label htmlFor='linkType'>Relationship type</Label>
-            <Popover open={relOpen} onOpenChange={setRelOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type='button'
-                  id='linkType'
-                  className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden disabled:opacity-60'
-                  disabled={loading || !linkIssueKey.trim()}
-                  aria-haspopup='listbox'
-                  aria-expanded={relOpen}
-                >
-                  <span className='truncate'>{linkType}</span>
-                  <ChevronsUpDown className='h-4 w-4 opacity-60' />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
-                <Command>
-                  <CommandInput placeholder='Search relationship...' />
-                  <CommandList>
-                    <CommandEmpty>No types found.</CommandEmpty>
-                    <CommandGroup heading='Types'>
-                      {[
-                        'Relates',
-                        'Blocks',
-                        'Blocked by',
-                        'Duplicates',
-                        'Duplicated by',
-                        'Clones',
-                        'Cloned by'
-                      ].map((t) => (
-                        <CommandItem
-                          key={t}
-                          value={t}
-                          onSelect={() => {
-                            setLinkType(t)
-                            setRelOpen(false)
-                          }}
-                        >
-                          {t}
-                          {linkType.toLowerCase() === t.toLowerCase() && (
-                            <Check className='ml-auto h-4 w-4 opacity-70' />
-                          )}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <div className='text-xs text-muted-foreground'>
-              Direction is applied automatically (e.g., "Blocked by" will create
-              an inward link of type Blocks).
-            </div>
-          </div>
+          <LinkIssuePicker
+            projectKey={projectKey}
+            linkIssueKey={linkIssueKey}
+            onLinkIssueKeyChange={setLinkIssueKey}
+            linkType={linkType}
+            onLinkTypeChange={setLinkType}
+            disabled={loading}
+          />
 
           <div className='flex justify-end gap-2 pt-2'>
             <Button variant='outline' onClick={handleClose} disabled={loading}>

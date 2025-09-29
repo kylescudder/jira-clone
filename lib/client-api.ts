@@ -672,3 +672,26 @@ export function prefetchProjectLookups(projectKey: string) {
   void fetchIssueTypes(projectKey)
   void fetchProjectVersions(projectKey)
 }
+
+export async function linkIssueClient(params: {
+  issueKey: string
+  toIssueKey: string
+  linkType?: string
+}): Promise<boolean> {
+  try {
+    const { issueKey, toIssueKey, linkType } = params
+    const res = await fetch(
+      `/api/issues/${encodeURIComponent(issueKey)}/link`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toIssueKey, linkType: linkType || 'Relates' })
+      }
+    )
+    if (!res.ok) return false
+    return true
+  } catch (e) {
+    console.error('linkIssueClient error', e)
+    return false
+  }
+}

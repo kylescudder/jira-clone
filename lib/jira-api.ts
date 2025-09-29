@@ -72,7 +72,16 @@ async function jiraFetch(endpoint: string, options?: RequestInit) {
   }
 
   if (!response.ok) {
-    throw new Error(`Jira API error: ${response.status} ${response.statusText}`)
+    let errText = ''
+    try {
+      errText = await response.text()
+    } catch (_) {
+      // ignore
+    }
+    const suffix = errText ? ` - ${errText}` : ''
+    throw new Error(
+      `Jira API error: ${response.status} ${response.statusText}${suffix}`
+    )
   }
 
   // Handle empty responses (like 204 No Content)
@@ -1376,63 +1385,113 @@ export async function createIssue(params: {
         : {})
     }
 
-    // Populate the custom field from the add modal selection (customfield_10312)
-    if (componentId) {
-      // Jira custom select fields typically expect an object with an id
-      fields.customfield_10312 = { id: String(componentId) }
-    }
+    // Defer setting custom fields (e.g., customfield_10312) until after creation to avoid validation errors during create
 
-    // Set issue type if provided
+    // Ensure issue type is set. If not provided, pick the first available for the project.
     if (issueTypeId) {
       fields.issuetype = { id: String(issueTypeId) }
-    }
-
-    // Set fix versions if provided (array of version IDs)
-    if (Array.isArray(versionIds) && versionIds.length > 0) {
-      fields.fixVersions = versionIds.map((id) => ({ id: String(id) }))
-    }
-
-    // Set sprint if provided (customfield_10020). Jira expects an array of sprint objects with id.
-    if (sprintId && String(sprintId).trim()) {
-      fields.customfield_10020 = [{ id: String(sprintId).trim() }]
-    }
-
-    if (
-      linkIssueKey &&
-      typeof linkIssueKey === 'string' &&
-      linkIssueKey.trim()
-    ) {
-      const key = linkIssueKey.trim()
-      // Map relationship selection to Jira issuelinks shape
-      // For directional link types, use outwardIssue vs inwardIssue accordingly
-      const typeName = (linkType || 'Relates').trim()
-      const rel = typeName.toLowerCase()
-      let link: any = { type: { name: 'Relates' }, outwardIssue: { key } }
-      if (rel === 'relates') {
-        link = { type: { name: 'Relates' }, outwardIssue: { key } }
-      } else if (rel === 'blocks') {
-        link = { type: { name: 'Blocks' }, outwardIssue: { key } }
-      } else if (rel === 'blocked by' || rel === 'is blocked by') {
-        link = { type: { name: 'Blocks' }, inwardIssue: { key } }
-      } else if (rel === 'duplicates' || rel === 'duplicate') {
-        link = { type: { name: 'Duplicate' }, outwardIssue: { key } }
-      } else if (rel === 'duplicated by' || rel === 'is duplicated by') {
-        link = { type: { name: 'Duplicate' }, inwardIssue: { key } }
-      } else if (rel === 'clones') {
-        link = { type: { name: 'Cloners' }, outwardIssue: { key } }
-      } else if (rel === 'cloned by' || rel === 'is cloned by') {
-        link = { type: { name: 'Cloners' }, inwardIssue: { key } }
+    } else {
+      try {
+        const types = await getIssueTypes(projectKey)
+        const first = (types || [])[0]
+        if (first?.id) {
+          fields.issuetype = { id: String(first.id) }
+        }
+      } catch (_) {
+        // leave unset; Jira may default or return a clear error
       }
-      fields.issuelinks = [link]
     }
 
+    // Defer fixVersions and sprint (customfield_10020) until after creation
+
+    // Build payload and create issue
     const body = { fields }
-    console.log(JSON.stringify(body))
     const res = await jiraFetch(`/issue`, {
       method: 'POST',
       body: JSON.stringify(body)
     })
-    if (res?.key) return { key: res.key }
+
+    // If created successfully and a link is requested, create it afterwards
+    if (res?.key) {
+      const newKey = res.key as string
+      // Post-create: apply custom fields so the UI sees them immediately
+      try {
+        if (componentId && String(componentId).trim()) {
+          await jiraFetch(`/issue/${newKey}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              fields: {
+                customfield_10312: { id: String(componentId).trim() }
+              }
+            })
+          })
+        }
+      } catch (e) {
+        console.warn(
+          'Issue created but setting component custom field failed:',
+          e
+        )
+      }
+
+      try {
+        if (Array.isArray(versionIds) && versionIds.length > 0) {
+          await updateIssueFixVersions(newKey, versionIds)
+        }
+      } catch (e) {
+        console.warn('Issue created but setting fix versions failed:', e)
+      }
+
+      try {
+        if (sprintId && String(sprintId).trim()) {
+          await jiraFetch(`/issue/${newKey}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              fields: {
+                customfield_10020: [{ id: String(sprintId).trim() }]
+              }
+            })
+          })
+        }
+      } catch (e) {
+        console.warn('Issue created but setting sprint failed:', e)
+      }
+      if (
+        linkIssueKey &&
+        typeof linkIssueKey === 'string' &&
+        linkIssueKey.trim()
+      ) {
+        try {
+          const typeName = (linkType || 'Relates').trim()
+          const rel = typeName.toLowerCase()
+          let inward = false
+          let name = 'Relates'
+          if (rel === 'blocks') {
+            name = 'Blocks'
+          } else if (rel === 'blocked by' || rel === 'is blocked by') {
+            name = 'Blocks'
+            inward = true
+          } else if (rel === 'duplicates' || rel === 'duplicate') {
+            name = 'Duplicate'
+          } else if (rel === 'duplicated by' || rel === 'is duplicated by') {
+            name = 'Duplicate'
+            inward = true
+          } else if (rel === 'clones') {
+            name = 'Cloners'
+          } else if (rel === 'cloned by' || rel === 'is cloned by') {
+            name = 'Cloners'
+            inward = true
+          }
+          await createIssueLink({
+            fromIssueKey: inward ? linkIssueKey.trim() : newKey,
+            toIssueKey: inward ? newKey : linkIssueKey.trim(),
+            linkType: name
+          })
+        } catch (e) {
+          console.warn('Issue created but linking failed:', e)
+        }
+      }
+      return { key: newKey }
+    }
     return null
   } catch (error) {
     console.error('Error creating issue:', error)
@@ -1529,5 +1588,53 @@ export async function getIssueSuggestions(
   } catch (error) {
     console.error('Error fetching issue suggestions:', error)
     return []
+  }
+}
+
+// Create an issue link between two existing issues
+export async function createIssueLink(params: {
+  fromIssueKey: string
+  toIssueKey: string
+  linkType?: string // default 'Relates'
+}): Promise<boolean> {
+  try {
+    const { fromIssueKey, toIssueKey } = params
+    const typeName = (params.linkType || 'Relates').trim()
+    const rel = typeName.toLowerCase()
+    const key = toIssueKey.trim()
+
+    let body: any = { type: { name: 'Relates' }, outwardIssue: { key } }
+    if (rel === 'relates') {
+      body = { type: { name: 'Relates' }, outwardIssue: { key } }
+    } else if (rel === 'blocks') {
+      body = { type: { name: 'Blocks' }, outwardIssue: { key } }
+    } else if (rel === 'blocked by' || rel === 'is blocked by') {
+      body = { type: { name: 'Blocks' }, inwardIssue: { key } }
+    } else if (rel === 'duplicates' || rel === 'duplicate') {
+      body = { type: { name: 'Duplicate' }, outwardIssue: { key } }
+    } else if (rel === 'duplicated by' || rel === 'is duplicated by') {
+      body = { type: { name: 'Duplicate' }, inwardIssue: { key } }
+    } else if (rel === 'clones') {
+      body = { type: { name: 'Cloners' }, outwardIssue: { key } }
+    } else if (rel === 'cloned by' || rel === 'is cloned by') {
+      body = { type: { name: 'Cloners' }, inwardIssue: { key } }
+    }
+
+    // Jira requires global keys; use the created issue as the base and map inward/outward accordingly
+    // If body has outwardIssue, the base is 'fromIssueKey' as inward.
+    if (body.outwardIssue) {
+      body.inwardIssue = { key: fromIssueKey }
+    } else if (body.inwardIssue) {
+      body.outwardIssue = { key: fromIssueKey }
+    }
+
+    await jiraFetch(`/issueLink`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    })
+    return true
+  } catch (e) {
+    console.error('Error creating issue link:', e)
+    return false
   }
 }

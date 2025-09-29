@@ -313,7 +313,7 @@ export function FilterSidebar({
                     />
                     <Label htmlFor={`status-${status}`} className='text-sm'>
                       <span
-                        className={`inline-block rounded border px-2 py-0.5 text-xs ${getStatusColor(status)}`}
+                        className={`inline-block rounded-md border px-2 py-0.5 text-xs ${getStatusColor(status)}`}
                       >
                         {status}
                       </span>
