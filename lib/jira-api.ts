@@ -837,66 +837,141 @@ export async function getIssueDetails(issueKey: string) {
   }
 }
 
-// Helper to build Atlassian Document Format (ADF) from plain text, preserving newlines
+// Helper to build Atlassian Document Format (ADF) from markdown-ish text, preserving newlines
+// Supports: mentions (@[Name|accountId]), inline code `code`, code blocks ```lang ... ```
+// bold (**text** or __text__), italics (*text* or _text_), underline (++text++ or <u>text</u>), and links [text](url)
 function buildADFBodyFromText(text: string) {
-  // Normalize line endings
   const normalized = (text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  // Split by double newlines to create paragraphs
-  const paragraphs = normalized.split(/\n\n+/)
 
-  // Helper: split a plain text segment into ADF nodes, recognizing mention tokens
-  // Token format: @[Display Name|accountId]
-  const tokenize = (segment: string) => {
+  // Split into blocks, extracting fenced code blocks first so their inner content isn't parsed for inline marks
+  const blocks: Array<
+    | { kind: 'text'; value: string }
+    | { kind: 'code'; value: string; language?: string }
+  > = []
+
+  const fenceRe = /```([a-zA-Z0-9_+\-]*)?\n([\s\S]*?)\n?```/g
+  let last = 0
+  let fm: RegExpExecArray | null
+  while ((fm = fenceRe.exec(normalized))) {
+    const before = normalized.slice(last, fm.index)
+    if (before) blocks.push({ kind: 'text', value: before })
+    const language = (fm[1] || '').trim() || undefined
+    const codeBody = (fm[2] || '').replace(/\n$/, '')
+    blocks.push({ kind: 'code', value: codeBody, language })
+    last = fm.index + fm[0].length
+  }
+  const tailAll = normalized.slice(last)
+  if (tailAll) blocks.push({ kind: 'text', value: tailAll })
+  if (blocks.length === 0) blocks.push({ kind: 'text', value: '' })
+
+  // Mention tokenizer first: @[Display Name|accountId]
+  const splitMentions = (segment: string): any[] => {
     const nodes: any[] = []
-    if (!segment) return nodes
     const mentionRe = /@\[([^|\]]+?)\|([^\]]+?)\]/g
-    let lastIndex = 0
+    let idx = 0
     let m: RegExpExecArray | null
     while ((m = mentionRe.exec(segment))) {
-      const before = segment.slice(lastIndex, m.index)
-      if (before) nodes.push({ type: 'text', text: before })
-      const display = m[1]
-      const accountId = m[2]
-      nodes.push({
-        type: 'mention',
-        attrs: { id: accountId, text: `@${display}` }
-      })
-      lastIndex = m.index + m[0].length
+      if (m.index > idx) {
+        nodes.push({ type: 'text', text: segment.slice(idx, m.index) })
+      }
+      nodes.push({ type: 'mention', attrs: { id: m[2], text: `@${m[1]}` } })
+      idx = m.index + m[0].length
     }
-    const tail = segment.slice(lastIndex)
-    if (tail) nodes.push({ type: 'text', text: tail })
+    const rest = segment.slice(idx)
+    if (rest) nodes.push({ type: 'text', text: rest })
     if (nodes.length === 0) nodes.push({ type: 'text', text: '' })
     return nodes
   }
 
-  const content = paragraphs.map((para) => {
-    // Within a paragraph, single newlines become hardBreak nodes
-    const lines = para.split('\n')
-    const paragraphContent: any[] = []
-    lines.forEach((line, idx) => {
-      if (line.length) {
-        // Split into text and mention nodes
-        paragraphContent.push(...tokenize(line))
-      } else {
-        // keep empty text to preserve empty lines within paragraph
+  // Inline markdown parser for a plain text string -> array of text/marked nodes
+  const parseInline = (textSeg: string): any[] => {
+    const out: any[] = []
+    const rx =
+      /(\[([^\]]+)\]\(([^)]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(\+\+([^+]+)\+\+)|(<u>(.*?)<\/u>)|(\*([^*]+)\*)|(_([^_]+)_)/g
+    let pos = 0
+    let m: RegExpExecArray | null
+    while ((m = rx.exec(textSeg))) {
+      if (m.index > pos) {
+        out.push({ type: 'text', text: textSeg.slice(pos, m.index) })
+      }
+      if (m[1]) {
+        // link [text](url)
+        out.push({
+          type: 'text',
+          text: m[2],
+          marks: [{ type: 'link', attrs: { href: m[3] } }]
+        })
+      } else if (m[4]) {
+        // inline code `code`
+        out.push({ type: 'text', text: m[5], marks: [{ type: 'code' }] })
+      } else if (m[6]) {
+        // **bold**
+        out.push({ type: 'text', text: m[7], marks: [{ type: 'strong' }] })
+      } else if (m[8]) {
+        // __bold__ (map to strong)
+        out.push({ type: 'text', text: m[9], marks: [{ type: 'strong' }] })
+      } else if (m[10]) {
+        // ++underline++
+        out.push({ type: 'text', text: m[11], marks: [{ type: 'underline' }] })
+      } else if (m[12]) {
+        // <u>underline</u>
+        out.push({ type: 'text', text: m[13], marks: [{ type: 'underline' }] })
+      } else if (m[14]) {
+        // *italic*
+        out.push({ type: 'text', text: m[15], marks: [{ type: 'em' }] })
+      } else if (m[16]) {
+        // _italic_
+        out.push({ type: 'text', text: m[17], marks: [{ type: 'em' }] })
+      }
+      pos = m.index + m[0].length
+    }
+    const rest = textSeg.slice(pos)
+    if (rest) out.push({ type: 'text', text: rest })
+    if (out.length === 0) out.push({ type: 'text', text: '' })
+    return out
+  }
+
+  // Convert text blocks into ADF paragraphs and code blocks
+  const content: any[] = []
+  for (const b of blocks) {
+    if (b.kind === 'code') {
+      const codeNode: any = {
+        type: 'codeBlock',
+        ...(b.language ? { attrs: { language: b.language } } : {}),
+        content: [{ type: 'text', text: b.value }]
+      }
+      content.push(codeNode)
+      continue
+    }
+    // Text block: split into paragraphs by double newlines
+    const paragraphs = b.value.split(/\n\n+/)
+    for (const para of paragraphs) {
+      const lines = para.split('\n')
+      const paragraphContent: any[] = []
+      lines.forEach((line, idx) => {
+        if (line.length) {
+          // First, split mentions, then parse inline markdown in text nodes
+          const mentionNodes = splitMentions(line)
+          for (const n of mentionNodes) {
+            if (n.type === 'mention') {
+              paragraphContent.push(n)
+            } else if (n.type === 'text') {
+              paragraphContent.push(...parseInline(n.text))
+            }
+          }
+        } else {
+          paragraphContent.push({ type: 'text', text: '' })
+        }
+        if (idx < lines.length - 1) paragraphContent.push({ type: 'hardBreak' })
+      })
+      if (paragraphContent.length === 0)
         paragraphContent.push({ type: 'text', text: '' })
-      }
-      if (idx < lines.length - 1) {
-        paragraphContent.push({ type: 'hardBreak' })
-      }
-    })
-    // If paragraph is empty, keep an empty text node so Jira shows a blank line
-    if (paragraphContent.length === 0)
-      paragraphContent.push({ type: 'text', text: '' })
-    return { type: 'paragraph', content: paragraphContent }
-  })
+      content.push({ type: 'paragraph', content: paragraphContent })
+    }
+  }
 
   return {
-    body: {
-      type: 'doc',
-      version: 1,
-      content
-    }
+    body: { type: 'doc', version: 1, content }
   }
 }
 
