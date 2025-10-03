@@ -1124,7 +1124,22 @@ export async function getIssues(
     let total = 0
 
     do {
-      const url = `/search/jql?jql=${encodeURIComponent(jql)}&fields=*all${nextPageToken ? `&nextPageToken=${encodeURIComponent(nextPageToken)}` : ''}`
+      const minimalFields = [
+        'summary',
+        'status',
+        'priority',
+        'assignee',
+        'reporter',
+        'issuetype',
+        'created',
+        'updated',
+        'duedate',
+        'labels',
+        'components',
+        'fixVersions',
+        'customfield_10020'
+      ].join(',')
+      const url = `/search/jql?jql=${encodeURIComponent(jql)}&fields=${encodeURIComponent(minimalFields)}${nextPageToken ? `&nextPageToken=${encodeURIComponent(nextPageToken)}` : ''}`
       console.log(
         `Fetching issues batch using ${nextPageToken ? 'nextPageToken' : 'initial'} request`
       )
@@ -1149,12 +1164,6 @@ export async function getIssues(
           id: issue.id,
           key: issue.key,
           summary: issue.fields.summary,
-          description: extractTextFromADF(issue.fields.description),
-          descriptionHtml: adfToHtml(
-            issue.fields.description,
-            issue.fields.attachment,
-            issue.key
-          ),
           status: issue.fields.status,
           priority: issue.fields.priority,
           assignee: issue.fields.assignee,
@@ -1460,7 +1469,10 @@ export async function createIssue(params: {
         : {})
     }
 
-    // Defer setting custom fields (e.g., customfield_10312) until after creation to avoid validation errors during create
+    // Include component as a required field during creation
+    if (componentId && String(componentId).trim()) {
+      fields.customfield_10312 = { id: String(componentId).trim() }
+    }
 
     // Ensure issue type is set. If not provided, pick the first available for the project.
     if (issueTypeId) {
@@ -1477,8 +1489,6 @@ export async function createIssue(params: {
       }
     }
 
-    // Defer fixVersions and sprint (customfield_10020) until after creation
-
     // Build payload and create issue
     const body = { fields }
     const res = await jiraFetch(`/issue`, {
@@ -1489,25 +1499,8 @@ export async function createIssue(params: {
     // If created successfully and a link is requested, create it afterwards
     if (res?.key) {
       const newKey = res.key as string
-      // Post-create: apply custom fields so the UI sees them immediately
-      try {
-        if (componentId && String(componentId).trim()) {
-          await jiraFetch(`/issue/${newKey}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              fields: {
-                customfield_10312: { id: String(componentId).trim() }
-              }
-            })
-          })
-        }
-      } catch (e) {
-        console.warn(
-          'Issue created but setting component custom field failed:',
-          e
-        )
-      }
 
+      // Post-create: apply custom fields that weren't set during creation
       try {
         if (Array.isArray(versionIds) && versionIds.length > 0) {
           await updateIssueFixVersions(newKey, versionIds)
@@ -1530,6 +1523,7 @@ export async function createIssue(params: {
       } catch (e) {
         console.warn('Issue created but setting sprint failed:', e)
       }
+
       if (
         linkIssueKey &&
         typeof linkIssueKey === 'string' &&

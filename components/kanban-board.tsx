@@ -1,12 +1,16 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { IssueCard } from '@/components/issue-card'
 import { FilterSidebar } from '@/components/filter-sidebar'
 import { normalizeStatusName } from '@/lib/utils'
-import { getCachedData, preloadIssues } from '@/lib/client-api'
+import {
+  getCachedData,
+  preloadIssues,
+  preloadIssueData
+} from '@/lib/client-api'
 import { JiraIssue } from '@/types/JiraIssue'
 import { FilterOptions } from '@/types/FilterOptions'
 import { BoardColumn } from '@/types/BoardColumn'
@@ -265,6 +269,19 @@ export function KanbanBoard({
     preloadIssues(issues, projectKey, cap)
   }, [searchQuery, projectKey, issues])
 
+  // Prefetch on hover: avoid duplicate work within a session using a ref set
+  const prefetchedRef = useRef<Set<string>>(new Set())
+  const handleHoverPrefetch = (issue: JiraIssue) => {
+    if (!projectKey) return
+    const key = issue?.key
+    if (!key || prefetchedRef.current.has(key)) return
+    prefetchedRef.current.add(key)
+    // Debounce slightly to avoid accidental brushes during fast scroll
+    window.setTimeout(() => {
+      void preloadIssueData(key, projectKey)
+    }, 150)
+  }
+
   return (
     <div className='bg-background flex h-full'>
       <FilterSidebar
@@ -299,7 +316,10 @@ export function KanbanBoard({
                         key={issue.id}
                         issue={issue}
                         onClick={onIssueClick}
-                        onHover={onIssueHover}
+                        onHover={(iss) => {
+                          handleHoverPrefetch(iss)
+                          onIssueHover?.(iss)
+                        }}
                       />
                     ))}
                     {column.issues.length === 0 && (
