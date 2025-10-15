@@ -328,7 +328,8 @@ export function adfToHtml(
       strong: 3,
       em: 4,
       underline: 5,
-      strike: 6
+      strike: 6,
+      textColor: 7
     }
     const sorted = [...marks].sort(
       (a, b) => (order[a.type] || 99) - (order[b.type] || 99)
@@ -357,6 +358,18 @@ export function adfToHtml(
         case 'strikeout':
           html = `<s>${html}</s>`
           break
+        case 'textColor': {
+          const raw = mark.attrs?.color
+          // Only allow safe hex colors (#RGB, #RRGGBB, #RRGGBBAA)
+          const isHex =
+            typeof raw === 'string' &&
+            /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(raw)
+          const color = isHex ? raw : null
+          if (color) {
+            html = `<span style="color: ${color}">${html}</span>`
+          }
+          break
+        }
         default:
           break
       }
@@ -1127,6 +1140,7 @@ export async function getIssues(
       const minimalFields = [
         'summary',
         'status',
+        'description',
         'priority',
         'assignee',
         'reporter',
@@ -1165,6 +1179,12 @@ export async function getIssues(
           key: issue.key,
           summary: issue.fields.summary,
           status: issue.fields.status,
+          description: extractTextFromADF(issue.fields.description),
+          descriptionHtml: adfToHtml(
+            issue.fields.description,
+            issue.fields.attachment,
+            issue.key
+          ),
           priority: issue.fields.priority,
           assignee: issue.fields.assignee,
           reporter: issue.fields.reporter,

@@ -18,19 +18,6 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList
-} from '@/components/ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -77,6 +64,10 @@ import {
   decodeHtmlEntities
 } from '@/lib/utils'
 import { VersionsMultiSelect } from '@/components/versions-multi-select'
+import { JiraUser } from '@/types/JiraUser'
+import { JiraIssue } from '@/types/JiraIssue'
+import { JiraComment } from '@/types/JiraComment'
+import { JiraIssueDetails } from '@/types/JiraIssueDetails'
 
 interface IssueEditModalProps {
   issue: JiraIssue | null
@@ -635,6 +626,7 @@ export function IssueEditModal({
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(true)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(true)
   const [freshIssue, setFreshIssue] = useState<JiraIssue | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [preview, setPreview] = useState<{
@@ -1415,77 +1407,99 @@ export function IssueEditModal({
               {details && details.attachments.length > 0 ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle className='flex items-center justify-between text-lg'>
-                      <span>Attachments</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
-                      {details.attachments.map((att) => {
-                        const previewUrl = `/api/issues/${issue.key}/attachments/${att.id}?disposition=inline`
-                        const isPdf =
-                          (att.mimeType &&
-                            att.mimeType.toLowerCase().includes('pdf')) ||
-                          /\.pdf$/i.test(att.filename)
-                        const canPreview = att.isImage || isPdf
-                        return (
-                          <div
-                            key={att.id}
-                            className='border rounded-md p-3 flex items-center gap-3 bg-muted/30'
-                          >
-                            {att.isImage ? (
-                              <img
-                                src={previewUrl}
-                                alt={att.filename}
-                                className='h-16 w-16 object-cover rounded-md border cursor-pointer hover:opacity-90'
-                                onClick={() =>
-                                  setPreview({
-                                    url: previewUrl,
-                                    filename: att.filename,
-                                    mime: att.mimeType
-                                  })
-                                }
-                              />
-                            ) : (
-                              <div
-                                className={`h-16 w-16 flex items-center justify-center rounded-md border bg-white text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                                onClick={() => {
-                                  if (canPreview)
-                                    setPreview({
-                                      url: previewUrl,
-                                      filename: att.filename,
-                                      mime: att.mimeType
-                                    })
-                                }}
+                    <Collapsible
+                      open={attachmentsOpen}
+                      onOpenChange={setAttachmentsOpen}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <button className='w-full flex items-center justify-between text-left focus:outline-none focus:ring-0'>
+                          <CardTitle className='flex items-center justify-between text-lg w-full'>
+                            <span className='flex items-center gap-2'>
+                              Attachments
+                              <Badge
+                                variant='secondary'
+                                className='text-xs px-2 py-0.5'
                               >
-                                {isPdf ? 'PDF Preview' : 'File'}
-                              </div>
-                            )}
-                            <div className='min-w-0 flex-1'>
-                              <div className='truncate text-sm font-medium'>
-                                {att.filename}
-                              </div>
-                              <div className='text-muted-foreground text-xs'>
-                                {(att.size / 1024).toFixed(1)} KB
-                              </div>
-                            </div>
-                            <a
-                              href={`/api/issues/${issue.key}/attachments/${att.id}`}
-                              className='text-blue-600 text-sm whitespace-nowrap'
-                            >
-                              Download
-                            </a>
+                                {details.attachments.length}
+                              </Badge>
+                            </span>
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${attachmentsOpen ? 'rotate-180' : ''}`}
+                            />
+                          </CardTitle>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent>
+                          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+                            {details.attachments.map((att) => {
+                              const previewUrl = `/api/issues/${issue.key}/attachments/${att.id}?disposition=inline`
+                              const isPdf =
+                                (att.mimeType &&
+                                  att.mimeType.toLowerCase().includes('pdf')) ||
+                                /\.pdf$/i.test(att.filename)
+                              const canPreview = att.isImage || isPdf
+                              return (
+                                <div
+                                  key={att.id}
+                                  className='border rounded-md p-3 flex items-center gap-3 bg-muted/30'
+                                >
+                                  {att.isImage ? (
+                                    <img
+                                      src={previewUrl}
+                                      alt={att.filename}
+                                      className='h-16 w-16 object-cover rounded-md border cursor-pointer hover:opacity-90'
+                                      onClick={() =>
+                                        setPreview({
+                                          url: previewUrl,
+                                          filename: att.filename,
+                                          mime: att.mimeType
+                                        })
+                                      }
+                                    />
+                                  ) : (
+                                    <div
+                                      className={`h-16 w-16 flex items-center justify-center rounded-md border bg-white text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                      onClick={() => {
+                                        if (canPreview)
+                                          setPreview({
+                                            url: previewUrl,
+                                            filename: att.filename,
+                                            mime: att.mimeType
+                                          })
+                                      }}
+                                    >
+                                      {isPdf ? 'PDF Preview' : 'File'}
+                                    </div>
+                                  )}
+                                  <div className='min-w-0 flex-1'>
+                                    <div className='truncate text-sm font-medium'>
+                                      {att.filename}
+                                    </div>
+                                    <div className='text-muted-foreground text-xs'>
+                                      {(att.size / 1024).toFixed(1)} KB
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={`/api/issues/${issue.key}/attachments/${att.id}`}
+                                    className='text-blue-600 text-sm whitespace-nowrap'
+                                  >
+                                    Download
+                                  </a>
+                                </div>
+                              )
+                            })}
                           </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardHeader>
                 </Card>
               ) : null}
 
               {/* Comments */}
               <Card>
-                <CardHeader className='pb-0'>
+                <CardHeader>
                   <Collapsible
                     open={commentsOpen}
                     onOpenChange={setCommentsOpen}
@@ -1732,17 +1746,22 @@ export function IssueEditModal({
                 <CardHeader>
                   <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
                     <CollapsibleTrigger asChild>
-                      <button className='w-full flex items-center justify-between text-left'>
+                      <button className='w-full flex items-center justify-between text-left focus:outline-none focus:ring-0'>
                         <CardTitle className='flex items-center justify-between text-lg w-full'>
-                          <span>History</span>
-                          <span className='flex items-center gap-2 text-sm text-muted-foreground'>
-                            {details?.changelog?.length
-                              ? `${details.changelog.length}`
-                              : ''}
-                            <ChevronDown
-                              className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`}
-                            />
+                          <span className='flex items-center gap-2'>
+                            History
+                            {details?.changelog?.length ? (
+                              <Badge
+                                variant='secondary'
+                                className='text-xs px-2 py-0.5'
+                              >
+                                {details.changelog.length}
+                              </Badge>
+                            ) : null}
                           </span>
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`}
+                          />
                         </CardTitle>
                       </button>
                     </CollapsibleTrigger>
