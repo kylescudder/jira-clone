@@ -617,17 +617,19 @@ export default function HomePage() {
               </Badge>
             )}
             {sprints.length > 0 && (
-              <div className='flex items-center gap-2 text-sm'>
+              <div className='v1-only flex items-center gap-2 text-sm'>
                 <Badge
                   variant='secondary'
-                  className='bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-3 py-1'
+                  size='compact'
+                  className='bg-[hsl(var(--chart-5))/14] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]'
                 >
                   {activeFutureSprints} active/future
                 </Badge>
                 {closedSprints > 0 && (
                   <Badge
                     variant='secondary'
-                    className='bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 px-3 py-1'
+                    size='compact'
+                    className='bg-muted/30 text-muted-foreground border-border'
                   >
                     <Archive className='mr-1 h-3 w-3' />
                     {closedSprints} closed
@@ -638,43 +640,61 @@ export default function HomePage() {
             {activeFiltersCount > 0 && (
               <Badge
                 variant='outline'
-                className='border-blue-200 bg-blue-50 text-blue-700'
+                size='compact'
+                className='v1-only border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/12] text-[hsl(var(--primary))]'
               >
                 {activeFiltersCount} filter{activeFiltersCount !== 1 ? 's' : ''}{' '}
                 active
               </Badge>
             )}
             {currentUser && (
-              <div className='flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400'>
-                <span>Welcome, {currentUser.displayName}</span>
+              <div className='flex items-center gap-2 text-sm text-[hsl(var(--primary))]'>
+                <span className='v1-only'>
+                  Welcome, {currentUser.displayName}
+                </span>
                 {currentActiveIssue && (
-                  <Badge
-                    variant='outline'
-                    className='cursor-pointer'
-                    onClick={() => setSelectedIssue(currentActiveIssue)}
-                  >
-                    Active: {currentActiveIssue.key}
-                    <KeyboardKey size='xs' className='ml-1'>
-                      C
-                    </KeyboardKey>
-                  </Badge>
+                  <>
+                    {/* V1: compact chip */}
+                    <Badge
+                      variant='outline'
+                      size='compact'
+                      className='v1-only cursor-pointer'
+                      onClick={() => setSelectedIssue(currentActiveIssue)}
+                    >
+                      Active: {currentActiveIssue.key}
+                      <KeyboardKey size='xs' className='ml-1'>
+                        C
+                      </KeyboardKey>
+                    </Badge>
+                    {/* V2: comfortable chip */}
+                    <Badge
+                      variant='outline'
+                      className='v2-only cursor-pointer'
+                      onClick={() => setSelectedIssue(currentActiveIssue)}
+                    >
+                      Active: {currentActiveIssue.key}
+                      <KeyboardKey size='xs' className='ml-1'>
+                        C
+                      </KeyboardKey>
+                    </Badge>
+                  </>
                 )}
               </div>
             )}
+            {/* Count badge */}
+            <Badge variant='outline' size='compact' className='v1-only'>
+              {issues.length} issues loaded
+            </Badge>
+            <Badge
+              variant='outline'
+              size='compact'
+              className='v2-only hidden sm:inline-flex'
+            >
+              {issues.length} issues loaded
+            </Badge>
           </div>
           <div className='flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto'>
-            <div className='w-full sm:w-[280px]'>
-              <Input
-                ref={searchInputRef}
-                type='text'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='Search key, title, description, comments'
-                aria-label='Search issues'
-              />
-            </div>
-            <ThemeToggle />
-            <Badge variant='outline'>{issues.length} issues loaded</Badge>
+            {/* Move New Issue further left */}
             <Button
               size='sm'
               onClick={() => setNewIssueOpen(true)}
@@ -683,6 +703,20 @@ export default function HomePage() {
             >
               New Issue
             </Button>
+            {/* Search */}
+            <div className='w-full sm:w-[280px]'>
+              <Input
+                ref={searchInputRef}
+                type='text'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder='Search key, title, description, comments'
+                aria-label='Search issues'
+                className='h-9'
+              />
+            </div>
+            {/* Theme next to Logout */}
+            <ThemeToggle />
             <Button
               variant='outline'
               size='sm'

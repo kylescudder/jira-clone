@@ -425,7 +425,7 @@ export function IssueEditModal({
                     aria-hidden={copiedCommentLink ? 'true' : 'false'}
                   />
                   <CheckCircle
-                    className={`absolute inset-0 h-3.5 w-3.5 text-green-600 transition-opacity duration-500 ${copiedCommentLink ? 'opacity-100' : 'opacity-0'}`}
+                    className={`absolute inset-0 h-3.5 w-3.5 text-[hsl(var(--chart-5))] transition-opacity duration-500 ${copiedCommentLink ? 'opacity-100' : 'opacity-0'}`}
                     aria-hidden={copiedCommentLink ? 'false' : 'true'}
                   />
                 </span>
@@ -440,7 +440,7 @@ export function IssueEditModal({
                 {isEditing ? 'Cancel' : 'Edit'}
               </button>
               <button
-                className='hover:underline text-red-600'
+                className='hover:underline text-[hsl(var(--destructive))]'
                 onClick={handleDelete}
               >
                 Delete
@@ -564,7 +564,9 @@ export function IssueEditModal({
               ) : null}
               <div className='mt-2 flex items-center justify-end gap-2'>
                 {err && (
-                  <span className='mr-auto text-xs text-red-600'>{err}</span>
+                  <span className='mr-auto text-xs text-[hsl(var(--destructive))]'>
+                    {err}
+                  </span>
                 )}
                 <Button
                   size='sm'
@@ -972,16 +974,16 @@ export function IssueEditModal({
     switch (priority.toLowerCase()) {
       case 'critical':
       case 'highest':
-        return 'bg-red-100 text-red-800 border-red-200'
+        return 'bg-[hsl(var(--destructive))/14] text-[hsl(var(--destructive))] border-[hsl(var(--destructive))/30]'
       case 'high':
-        return 'bg-orange-100 text-orange-800 border-orange-200'
+        return 'bg-[hsl(var(--chart-4))/14] text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))/30]'
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        return 'bg-[hsl(var(--chart-1))/14] text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))/30]'
       case 'low':
       case 'lowest':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-[hsl(var(--chart-5))/14] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-muted/30 text-muted-foreground border-border'
     }
   }
 
@@ -1003,7 +1005,7 @@ export function IssueEditModal({
                 variant='outline'
                 className={`relative px-3 py-1 font-mono text-sm cursor-pointer select-none transition-transform active:scale-95 ${
                   copiedId
-                    ? 'ring-2 ring-green-400/60 ring-offset-2 ring-offset-background'
+                    ? 'ring-2 ring-[hsl(var(--chart-5))]/60 ring-offset-2 ring-offset-background'
                     : ''
                 }`}
                 title='Click to copy issue key'
@@ -1032,7 +1034,7 @@ export function IssueEditModal({
                 <span className='inline-flex items-center gap-2'>
                   {copiedId ? (
                     <>
-                      <CheckCircle className='h-3.5 w-3.5 text-green-600' />
+                      <CheckCircle className='h-3.5 w-3.5 text-[hsl(var(--chart-5))]' />
                       Copied!
                     </>
                   ) : (
@@ -1090,7 +1092,7 @@ export function IssueEditModal({
                     aria-hidden={copiedIssueLink ? 'true' : 'false'}
                   />
                   <CheckCircle
-                    className={`absolute inset-0 h-3.5 w-3.5 text-green-600 transition-opacity duration-500 ${copiedIssueLink ? 'opacity-100' : 'opacity-0'}`}
+                    className={`absolute inset-0 h-3.5 w-3.5 text-[hsl(var(--chart-5))] transition-opacity duration-500 ${copiedIssueLink ? 'opacity-100' : 'opacity-0'}`}
                     aria-hidden={copiedIssueLink ? 'false' : 'true'}
                   />
                 </span>
@@ -1112,18 +1114,18 @@ export function IssueEditModal({
             <div className='space-y-6'>
               {/* Success/Error Messages */}
               {success && (
-                <Alert className='border-green-200 bg-green-50'>
-                  <CheckCircle className='h-4 w-4 text-green-600' />
-                  <AlertDescription className='text-green-800'>
+                <Alert className='border-[hsl(var(--chart-5))/30] bg-[hsl(var(--chart-5))/12]'>
+                  <CheckCircle className='h-4 w-4 text-[hsl(var(--chart-5))]' />
+                  <AlertDescription className='text-[hsl(var(--chart-5))]'>
                     {success}
                   </AlertDescription>
                 </Alert>
               )}
 
               {error && (
-                <Alert className='border-red-200 bg-red-50'>
-                  <AlertCircle className='h-4 w-4 text-red-600' />
-                  <AlertDescription className='text-red-800'>
+                <Alert className='border-[hsl(var(--destructive))/30] bg-[hsl(var(--destructive))/12]'>
+                  <AlertCircle className='h-4 w-4 text-[hsl(var(--destructive))]' />
+                  <AlertDescription className='text-[hsl(var(--destructive))]'>
                     {error}
                   </AlertDescription>
                 </Alert>
@@ -1133,7 +1135,13 @@ export function IssueEditModal({
               <div className='flex flex-wrap gap-2'>
                 <Badge
                   variant='outline'
-                  className='border-blue-200 bg-blue-50 text-blue-700'
+                  className='v1-only border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/12] text-[hsl(var(--primary))]'
+                >
+                  {issue.issuetype.name}
+                </Badge>
+                <Badge
+                  variant='outline'
+                  className='v2-only border-border bg-muted/20 text-muted-foreground'
                 >
                   {issue.issuetype.name}
                 </Badge>
@@ -1459,7 +1467,7 @@ export function IssueEditModal({
                                     />
                                   ) : (
                                     <div
-                                      className={`h-16 w-16 flex items-center justify-center rounded-md border bg-white text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                                      className={`h-16 w-16 flex items-center justify-center rounded-md border border-border bg-card text-[10px] text-center px-1 ${canPreview ? 'cursor-pointer hover:bg-muted/40' : ''}`}
                                       onClick={() => {
                                         if (canPreview)
                                           setPreview({
@@ -1482,7 +1490,7 @@ export function IssueEditModal({
                                   </div>
                                   <a
                                     href={`/api/issues/${issue.key}/attachments/${att.id}`}
-                                    className='text-blue-600 text-sm whitespace-nowrap'
+                                    className='text-[hsl(var(--primary))] text-sm whitespace-nowrap'
                                   >
                                     Download
                                   </a>
@@ -1657,12 +1665,12 @@ export function IssueEditModal({
                             </span>
                             <div className='flex items-center gap-3'>
                               {commentError && (
-                                <span className='text-red-600'>
+                                <span className='text-[hsl(var(--destructive))]'>
                                   {commentError}
                                 </span>
                               )}
                               {commentSuccess && (
-                                <span className='text-green-600'>
+                                <span className='text-[hsl(var(--chart-5))]'>
                                   {commentSuccess}
                                 </span>
                               )}

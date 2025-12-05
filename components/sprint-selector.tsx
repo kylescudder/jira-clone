@@ -85,13 +85,13 @@ export function SprintSelector({
   const getSprintStateColor = (state: string) => {
     switch (state.toLowerCase()) {
       case 'active':
-        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200'
+        return 'bg-[hsl(var(--chart-5))/20] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]'
       case 'closed':
-        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-200'
+        return 'bg-muted/30 text-muted-foreground border-border'
       case 'future':
-        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200'
+        return 'bg-[hsl(var(--chart-1))/20] text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))/30]'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-200'
+        return 'bg-muted/30 text-muted-foreground border-border'
     }
   }
 
@@ -257,16 +257,16 @@ export function SprintSelector({
               {/* Sprint counts */}
               <div className='text-muted-foreground mt-2 flex items-center gap-4 text-xs'>
                 <div className='flex items-center gap-1'>
-                  <div className='h-2 w-2 rounded-full bg-green-500'></div>
+                  <div className='h-2 w-2 rounded-full bg-[hsl(var(--chart-5))]'></div>
                   Active: {sprintCounts.active || 0}
                 </div>
                 <div className='flex items-center gap-1'>
-                  <div className='h-2 w-2 rounded-full bg-blue-500'></div>
+                  <div className='h-2 w-2 rounded-full bg-[hsl(var(--chart-1))]'></div>
                   Future: {sprintCounts.future || 0}
                 </div>
                 {showClosedSprints && (
                   <div className='flex items-center gap-1'>
-                    <div className='h-2 w-2 rounded-full bg-gray-500'></div>
+                    <div className='h-2 w-2 rounded-full bg-muted-foreground'></div>
                     Closed: {closedSprints}
                   </div>
                 )}
@@ -299,7 +299,11 @@ export function SprintSelector({
                       </span>
                     </div>
                   </div>
-                  <Badge variant='outline' className='ml-2 shrink-0 text-xs'>
+                  <Badge
+                    variant='outline'
+                    size='compact'
+                    className='ml-2 shrink-0'
+                  >
                     no sprint
                   </Badge>
                 </CommandItem>
@@ -328,7 +332,8 @@ export function SprintSelector({
                     </div>
                     <Badge
                       variant='outline'
-                      className={`ml-2 shrink-0 text-xs ${getSprintStateColor(sprint.state)}`}
+                      size='compact'
+                      className={`ml-2 shrink-0 ${getSprintStateColor(sprint.state)}`}
                     >
                       {sprint.state}
                     </Badge>
@@ -363,8 +368,9 @@ export function SprintSelector({
             <Badge
               key={sprint.id}
               variant='secondary'
+              size='compact'
               className={cn(
-                'flex max-w-[180px] items-center gap-1 pr-1',
+                'flex max-w-[120px] sm:max-w-[180px] items-center gap-1 pr-1',
                 getSprintStateColor(sprint.state)
               )}
             >

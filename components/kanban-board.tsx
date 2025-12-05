@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { IssueCard } from '@/components/issue-card'
@@ -225,39 +225,89 @@ export function KanbanBoard({
     return allColumns.filter((column) => column.issues.length > 0)
   }, [filteredIssues])
 
-  const getColumnColor = (columnTitle: string) => {
+  // Detect current UI version (V1/V2) from body[data-ui] and react to changes
+  const [uiVersion, setUiVersion] = useState<'v1' | 'v2'>('v2')
+  useEffect(() => {
+    const read = () =>
+      (typeof document !== 'undefined'
+        ? document.body?.getAttribute('data-ui')
+        : 'v2') as 'v1' | 'v2'
+    setUiVersion(read() || 'v2')
+    const body = document.body
+    if (!body) return
+    const obs = new MutationObserver(() => setUiVersion(read() || 'v2'))
+    obs.observe(body, { attributes: true, attributeFilter: ['data-ui'] })
+    return () => obs.disconnect()
+  }, [])
+
+  // V1 tinted background classes per column (legacy look)
+  const getColumnTintClass = (columnTitle: string) => {
     switch (columnTitle) {
       case 'To Do':
-        return 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'
+        return 'border-[hsl(var(--chart-3))/30] bg-[hsl(var(--chart-3))/10]'
       case 'Attention Needed':
-        return 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950'
+        return 'border-[hsl(var(--destructive))/30] bg-[hsl(var(--destructive))/10]'
       case 'Blocked':
-        return 'border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950'
+        return 'border-[hsl(var(--destructive))/30] bg-[hsl(var(--destructive))/10]'
       case 'In Progress':
-        return 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950'
+        return 'border-[hsl(var(--chart-4))/30] bg-[hsl(var(--chart-4))/10]'
       case 'Current Active Issue':
-        return 'border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950'
+        return 'border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/10]'
       case 'In PR':
-        return 'border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950'
+        return 'border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/10]'
       case 'In Review':
-        return 'border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950'
+        return 'border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/10]'
       case 'Done':
-        return 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+        return 'border-[hsl(var(--chart-5))/30] bg-[hsl(var(--chart-5))/10]'
       case 'Awaiting Testing':
-        return 'border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950'
+        return 'border-[hsl(var(--chart-1))/30] bg-[hsl(var(--chart-1))/10]'
       case 'Iteration Required':
-        return 'border-pink-200 bg-pink-50 dark:border-pink-800 dark:bg-pink-950'
+        return 'border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/10]'
       case 'Awaiting Information':
-        return 'border-cyan-200 bg-cyan-50 dark:border-cyan-800 dark:bg-cyan-950'
+        return 'border-[hsl(var(--chart-3))/30] bg-[hsl(var(--chart-3))/10]'
       case 'Under Monitoring':
-        return 'border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-950'
+        return 'border-[hsl(var(--chart-1))/30] bg-[hsl(var(--chart-1))/10]'
       case 'Not an Issue':
-        return 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
+        return 'border-border bg-muted/20'
       case 'Requires Config Change':
-        return 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
+        return 'border-[hsl(var(--chart-5))/30] bg-[hsl(var(--chart-5))/10]'
       default:
-        return 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
+        return 'border-border bg-muted/20'
     }
+  }
+
+  // Return HSL token name for column accent strip in V2
+  const getColumnHueToken = (columnTitle: string) => {
+    switch (columnTitle) {
+      case 'To Do':
+        return '--chart-3'
+      case 'Attention Needed':
+      case 'Blocked':
+        return '--destructive'
+      case 'In Progress':
+        return '--chart-4'
+      case 'Current Active Issue':
+      case 'In PR':
+      case 'In Review':
+      case 'Iteration Required':
+        return '--primary'
+      case 'Done':
+      case 'Requires Config Change':
+      case 'Not an Issue':
+        return '--chart-5'
+      case 'Awaiting Testing':
+      case 'Under Monitoring':
+        return '--chart-1'
+      case 'Awaiting Information':
+        return '--chart-3'
+      default:
+        return '--border'
+    }
+  }
+
+  const getColumnAccentBarClass = (columnTitle: string) => {
+    const token = getColumnHueToken(columnTitle)
+    return `bg-[hsl(var(${token}))]`
   }
 
   // Best-effort: when searching, preload issue details for comment search
@@ -299,36 +349,79 @@ export function KanbanBoard({
             {columns.map((column) => (
               <Card
                 key={column.id}
-                className={`flex sm:h-full w-full md:w-[320px] lg:w-[360px] xl:w-[380px] 2xl:w-[420px] min-w-full md:min-w-[320px] lg:min-w-[360px] xl:min-w-[380px] 2xl:min-w-[420px] shrink-0 flex-col ${getColumnColor(column.title)}`}
+                className={`flex sm:h-full w-full md:w-[320px] lg:w-[360px] xl:w-[380px] 2xl:w-[420px] min-w-full md:min-w-[320px] lg:min-w-[360px] xl:min-w-[380px] 2xl:min-w-[420px] shrink-0 flex-col ${uiVersion === 'v2' ? 'bg-card' : getColumnTintClass(column.title)}`}
               >
-                <CardHeader className='shrink-0 pb-3'>
-                  <CardTitle className='flex items-center justify-between'>
-                    <span className='truncate text-lg'>{column.title}</span>
-                    <Badge variant='secondary' className='ml-2 shrink-0'>
-                      {column.issues.length}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className='flex-1 overflow-y-auto p-3'>
-                  <div className='space-y-3'>
-                    {column.issues.map((issue) => (
-                      <IssueCard
-                        key={issue.id}
-                        issue={issue}
-                        onClick={onIssueClick}
-                        onHover={(iss) => {
-                          handleHoverPrefetch(iss)
-                          onIssueHover?.(iss)
-                        }}
-                      />
-                    ))}
-                    {column.issues.length === 0 && (
-                      <div className='text-muted-foreground py-8 text-center text-sm'>
-                        No issues in this column
+                {uiVersion === 'v2' ? (
+                  <div className='flex-1 min-h-0 overflow-y-auto'>
+                    {/* Sticky header with accent top strip */}
+                    <div className='sticky top-0 z-10 bg-card'>
+                      <div
+                        className={`h-1 w-full ${getColumnAccentBarClass(column.title)}`}
+                      ></div>
+                      <div className='px-3 py-3 border-b border-border'>
+                        <div className='flex items-center justify-between'>
+                          <span className='truncate text-base font-medium'>
+                            {column.title}
+                          </span>
+                          <Badge
+                            variant='secondary'
+                            size='compact'
+                            className='ml-2 shrink-0'
+                          >
+                            {column.issues.length}
+                          </Badge>
+                        </div>
                       </div>
-                    )}
+                    </div>
+                    <div className='p-3'>
+                      <div className='space-y-3'>
+                        {column.issues.map((issue) => (
+                          <IssueCard
+                            key={issue.id}
+                            issue={issue}
+                            onClick={onIssueClick}
+                            onHover={(iss) => {
+                              handleHoverPrefetch(iss)
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </CardContent>
+                ) : (
+                  <>
+                    <div className='shrink-0 pb-3'>
+                      <div className='px-4 pt-4'>
+                        <div className='flex items-center justify-between'>
+                          <span className='truncate text-lg'>
+                            {column.title}
+                          </span>
+                          <Badge
+                            variant='secondary'
+                            size='compact'
+                            className='ml-2 shrink-0'
+                          >
+                            {column.issues.length}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className='flex-1 overflow-y-auto p-3'>
+                      <div className='space-y-3'>
+                        {column.issues.map((issue) => (
+                          <IssueCard
+                            key={issue.id}
+                            issue={issue}
+                            onClick={onIssueClick}
+                            onHover={(iss) => {
+                              handleHoverPrefetch(iss)
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </Card>
             ))}
           </div>

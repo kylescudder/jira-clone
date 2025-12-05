@@ -95,50 +95,93 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    /* Catppuccin Mocha palette (applied globally, even in light mode) */
+    /* Core surfaces */
+    --background: 240 22% 15%; /* base #1e1e2e */
+    --foreground: 227 64% 86%; /* text #cdd6f4 */
+
+    --card: 234 21% 23%; /* surface0 #313244 */
+    --card-foreground: 227 64% 86%;
+
+    --popover: 234 21% 23%;
+    --popover-foreground: 227 64% 86%;
+
+    /* Brand/primary accents (Mauve as primary) */
+    --primary: 267 84% 82%; /* mauve #cba6f7 */
+    --primary-foreground: 234 21% 23%; /* readable on mauve */
+
+    /* Secondary + muted use darker surfaces */
+    --secondary: 231 16% 31%; /* surface1 #45475a */
+    --secondary-foreground: 227 64% 86%;
+
+    --muted: 231 16% 31%;
+    --muted-foreground: 227 17% 63%; /* overlay2 #9399b2 */
+
+    --accent: 231 16% 31%;
+    --accent-foreground: 227 64% 86%;
+
+    /* States */
+    --destructive: 343 85% 76%; /* red #f38ba8 */
+    --destructive-foreground: 234 21% 23%;
+
+    /* Controls */
+    --border: 231 12% 39%; /* surface2 #585b70 */
+    --input: 231 12% 39%;
+    --ring: 267 84% 82%; /* mauve */
+
+    /* Radius keeps prior */
     --radius: 0.5rem;
+
+    /* Optional: charts mapped to Catppuccin hues */
+    --chart-1: 217 92% 76%; /* blue #89b4fa */
+    --chart-2: 267 84% 82%; /* mauve #cba6f7 */
+    --chart-3: 196 77% 70%; /* sapphire #74c7ec */
+    --chart-4: 24 92% 76%; /* peach #fab387 */
+    --chart-5: 110 54% 76%; /* green #a6e3a1 */
+
+    /* Sidebar tokens (if used) */
+    --sidebar-background: 231 16% 31%; /* surface1 */
+    --sidebar-foreground: 227 64% 86%;
+    --sidebar-primary: 267 84% 82%; /* mauve */
+    --sidebar-primary-foreground: 234 21% 23%;
+    --sidebar-accent: 231 12% 39%; /* surface2 */
+    --sidebar-accent-foreground: 227 64% 86%;
+    --sidebar-border: 231 12% 39%;
+    --sidebar-ring: 267 84% 82%;
   }
 
   .dark {
-    /* Linear-inspired dark palette */
-    --background: 230 13% 9%; /* near-black slate */
-    --foreground: 210 20% 96%; /* off-white */
-    --card: 230 13% 11%;
-    --card-foreground: 210 20% 96%;
-    --popover: 230 13% 11%;
-    --popover-foreground: 210 20% 96%;
-    --primary: 258 90% 66%; /* Linear-ish purple */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 230 12% 14%;
-    --secondary-foreground: 210 20% 96%;
-    --muted: 230 12% 14%;
-    --muted-foreground: 220 9% 65%; /* muted gray text */
-    --accent: 230 12% 14%;
-    --accent-foreground: 210 20% 96%;
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 230 10% 18%; /* subtle borders */
-    --input: 230 10% 18%;
-    --ring: 258 90% 66%;
-    --radius: 0.75rem; /* slightly rounder */
+    /* Catppuccin Mocha palette */
+    --background: 240 22% 15%; /* base #1e1e2e */
+    --foreground: 227 64% 86%; /* text #cdd6f4 */
+
+    --card: 234 21% 23%; /* surface0 #313244 */
+    --card-foreground: 227 64% 86%;
+
+    --popover: 234 21% 23%;
+    --popover-foreground: 227 64% 86%;
+
+    /* Primary brand: Mauve */
+    --primary: 267 84% 82%; /* mauve #cba6f7 */
+    --primary-foreground: 234 21% 23%;
+
+    --secondary: 231 16% 31%; /* surface1 #45475a */
+    --secondary-foreground: 227 64% 86%;
+
+    --muted: 231 16% 31%;
+    --muted-foreground: 227 17% 63%; /* overlay2 #9399b2 */
+
+    --accent: 231 16% 31%;
+    --accent-foreground: 227 64% 86%;
+
+    --destructive: 343 85% 76%; /* red #f38ba8 */
+    --destructive-foreground: 234 21% 23%;
+
+    --border: 231 12% 39%; /* surface2 #585b70 */
+    --input: 231 12% 39%;
+    --ring: 267 84% 82%; /* mauve */
+
+    --radius: 0.5rem; /* align with :root */
   }
 }
 
@@ -150,5 +193,15 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     letter-spacing: 0.01em;
+  }
+}
+
+/* UI version gates */
+@layer base {
+  [data-ui='v2'] .v1-only {
+    display: none !important;
+  }
+  [data-ui='v1'] .v2-only {
+    display: none !important;
   }
 }

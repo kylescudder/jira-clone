@@ -41,8 +41,7 @@ export function LoadingTracker({
       className={cn(
         'fixed bottom-4 right-4 z-50 w-[320px] select-none',
         'shadow-lg rounded-md border',
-        'bg-white text-gray-900 border-gray-200',
-        'dark:bg-gray-900 dark:text-gray-100 dark:border-gray-800'
+        'bg-card text-card-foreground border-border'
       )}
       role='status'
       aria-live='polite'
@@ -50,11 +49,11 @@ export function LoadingTracker({
       <div className='p-3 flex items-start gap-3'>
         <div className='mt-0.5'>
           {isDone ? (
-            <CheckCircle2 className='h-5 w-5 text-green-500' />
+            <CheckCircle2 className='h-5 w-5 text-[hsl(var(--chart-5))]' />
           ) : isError ? (
-            <X className='h-5 w-5 text-red-500' />
+            <X className='h-5 w-5 text-[hsl(var(--destructive))]' />
           ) : (
-            <Loader2 className='h-5 w-5 animate-spin text-blue-500' />
+            <Loader2 className='h-5 w-5 animate-spin text-[hsl(var(--primary))]' />
           )}
         </div>
         <div className='flex-1 min-w-0'>
@@ -65,13 +64,13 @@ export function LoadingTracker({
                 ? 'Something went wrong'
                 : 'Loading data'}
           </div>
-          <div className='text-xs text-gray-600 dark:text-gray-400 mt-0.5 truncate'>
+          <div className='text-xs text-muted-foreground mt-0.5 truncate'>
             {message || (isDone ? 'Finished loading' : 'Please wait...')}
           </div>
         </div>
         <button
           aria-label='Close'
-          className='ml-1 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800'
+          className='ml-1 p-1 rounded-md hover:bg-muted/40'
           onClick={onClose}
         >
           <X className='h-4 w-4' />

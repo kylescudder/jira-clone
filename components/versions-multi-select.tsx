@@ -74,7 +74,12 @@ export function VersionsMultiSelect({
             versions
               .filter((v) => selectedIds.includes(v.id))
               .map((v) => (
-                <Badge key={v.id} variant='secondary' className='text-xs'>
+                <Badge
+                  key={v.id}
+                  variant='secondary'
+                  size='compact'
+                  className='text-xs'
+                >
                   {decodeHtmlEntities(v.name)}
                 </Badge>
               ))
@@ -166,7 +171,7 @@ export function VersionsMultiSelect({
                       </div>
                       <Badge
                         variant='outline'
-                        className={`ml-2 shrink-0 text-xs ${v.released ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200'}`}
+                        className={`ml-2 shrink-0 text-xs ${v.released ? 'bg-[hsl(var(--chart-5))/14] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]' : 'bg-[hsl(var(--chart-1))/14] text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))/30]'}`}
                       >
                         {v.released ? 'released' : 'unreleased'}
                       </Badge>

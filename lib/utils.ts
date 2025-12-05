@@ -97,42 +97,65 @@ export function normalizeStatusName(status: string): string {
 }
 
 export function getStatusColor(status: string): string {
-  const normalizedStatus = normalizeStatusName(status).toLowerCase()
+  const s = normalizeStatusName(status).toLowerCase()
 
-  // Group-based colours per user specification
-  // Grey background with white border
-  const greyGroup = new Set([
-    'to do',
-    'awaiting testing',
-    'for product prioritisation'
-  ])
+  // Map normalized statuses to Catppuccin hues via our theme tokens
+  // We use subtle tints for backgrounds with strong text color:
+  // bg: token /12–20, text: token, border: token /30
+  const tokenFor: Record<string, string> = {
+    // To Do group → Sapphire (chart-3)
+    'to do': '--chart-3',
 
-  // Blue with light blue border
-  const blueGroup = new Set([
-    'in progress',
-    'iteration required',
-    'blocked',
-    'current active issue',
-    'in pr',
-    'awaiting information',
-    'under monitoring'
-  ])
+    // Attention Needed → Red (destructive)
+    'attention needed': '--destructive',
 
-  // Green with light green border
-  const greenGroup = new Set(['done', 'requires config change', 'not an issue'])
+    // Blocked → Red (destructive)
+    blocked: '--destructive',
 
-  if (greyGroup.has(normalizedStatus)) {
-    return 'bg-gray-500 text-white border-white'
+    // In Progress → Peach (chart-4)
+    'in progress': '--chart-4',
+
+    // Current Active Issue → Mauve (primary)
+    'current active issue': '--primary',
+
+    // In PR → Mauve (primary)
+    'in pr': '--primary',
+
+    // In Review → Mauve (primary)
+    'in review': '--primary',
+
+    // Awaiting Testing → Blue (chart-1)
+    'awaiting testing': '--chart-1',
+
+    // Iteration Required → Mauve (primary)
+    'iteration required': '--primary',
+
+    // Awaiting Information → Sapphire (chart-3)
+    'awaiting information': '--chart-3',
+
+    // Under Monitoring → Blue (chart-1)
+    'under monitoring': '--chart-1',
+
+    // For Product Prioritisation → Sapphire (chart-3)
+    'for product prioritisation': '--chart-3',
+
+    // Requires Config Change → Green (chart-5)
+    'requires config change': '--chart-5',
+
+    // Not an Issue → Green (chart-5)
+    'not an issue': '--chart-5',
+
+    // Done → Green (chart-5)
+    done: '--chart-5'
   }
-  if (blueGroup.has(normalizedStatus)) {
-    return 'bg-blue-600 text-white border-blue-200'
-  }
-  if (greenGroup.has(normalizedStatus)) {
-    return 'bg-green-600 text-white border-green-200'
+
+  const token = tokenFor[s]
+  if (token) {
+    return `bg-[hsl(var(${token}))/14] text-[hsl(var(${token}))] border-[hsl(var(${token}))/30]`
   }
 
-  // Default fallback (neutral grey with white border to blend with spec)
-  return 'bg-gray-500 text-white border-white'
+  // Fallback to muted neutral
+  return 'bg-muted/30 text-muted-foreground border-border'
 }
 
 export function getStatusGroupRank(status: string): number {

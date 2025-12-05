@@ -14,6 +14,7 @@ import {
   CollapsibleTrigger
 } from '@/components/ui/collapsible'
 import { Badge } from '@/components/ui/badge'
+import { Chip, chipVariants } from '@/components/ui/chip'
 import {
   normalizeStatusName,
   getStatusColor,
@@ -40,6 +41,7 @@ export function FilterSidebar({
   isOpen,
   onToggle
 }: FilterSidebarProps) {
+  const [showAllChips, setShowAllChips] = useState(false)
   const [openSections, setOpenSections] = useState(() => {
     const defaults = {
       status: true,
@@ -240,7 +242,9 @@ export function FilterSidebar({
         <Filter className='mr-2 h-4 w-4' />
         Filters{' '}
         {getActiveFiltersCount() > 0 && (
-          <Badge variant='secondary'>{getActiveFiltersCount()}</Badge>
+          <Badge variant='secondary' size='compact'>
+            {getActiveFiltersCount()}
+          </Badge>
         )}
         <KeyboardKey size='xs' className='ml-2'>
           F
@@ -255,14 +259,16 @@ export function FilterSidebar({
         className='fixed inset-0 z-40 bg-black/50 lg:hidden dark:bg-black/70'
         onClick={onToggle}
       />
-      <Card className='bg-background fixed top-0 left-0 z-50 h-full w-80 overflow-y-auto overflow-x-hidden border-r lg:relative lg:z-0'>
+      <Card className='bg-background fixed top-0 left-0 z-50 h-full w-80 flex flex-col overflow-hidden border-r lg:relative lg:z-0'>
         <CardHeader className='flex flex-row items-center justify-between'>
           <CardTitle className='flex items-center gap-2'>
             <Filter className='h-5 w-5' />
             Filters
             {getActiveFiltersCount() > 0 && (
               <>
-                <Badge variant='secondary'>{getActiveFiltersCount()}</Badge>
+                <Badge variant='secondary' size='compact'>
+                  {getActiveFiltersCount()}
+                </Badge>
                 <Button variant='ghost' size='sm' onClick={clearAllFilters}>
                   Clear All
                 </Button>
@@ -276,7 +282,145 @@ export function FilterSidebar({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className='space-y-4 overflow-x-hidden'>
+        <CardContent className='space-y-4 overflow-x-hidden flex-1 overflow-y-auto'>
+          {/* Selected filters strip (V2 only) */}
+          {(() => {
+            const ui =
+              typeof document !== 'undefined'
+                ? document.body?.getAttribute('data-ui')
+                : 'v2'
+            if (ui !== 'v2') return null
+            // Build chip list from active filters
+            const entries: Array<{
+              key: keyof FilterOptions
+              label: string
+              value: string
+              id: string
+            }> = []
+            const pushArray = (
+              key: keyof FilterOptions,
+              nice: string,
+              arr?: string[]
+            ) => {
+              if (!arr || !arr.length) return
+              for (const v of arr)
+                entries.push({
+                  key,
+                  label: `${nice}: ${v}`,
+                  value: v,
+                  id: `${key}:${v}`
+                })
+            }
+            pushArray('status', 'Status', filters.status)
+            pushArray('priority', 'Priority', filters.priority)
+            pushArray(
+              'assignee',
+              'Assignee',
+              filters.assignee as string[] | undefined
+            )
+            pushArray('issueType', 'Type', filters.issueType)
+            pushArray('sprint', 'Sprint', filters.sprint)
+            pushArray('release', 'Release', filters.release)
+            pushArray('labels', 'Label', filters.labels)
+            pushArray('components', 'Component', filters.components)
+            if (filters.dueDateFrom)
+              entries.push({
+                key: 'dueDateFrom',
+                label: `Due from: ${filters.dueDateFrom}`,
+                value: filters.dueDateFrom,
+                id: 'dueDateFrom'
+              })
+            if (filters.dueDateTo)
+              entries.push({
+                key: 'dueDateTo',
+                label: `Due to: ${filters.dueDateTo}`,
+                value: filters.dueDateTo,
+                id: 'dueDateTo'
+              })
+
+            if (!entries.length) return null
+            const max = 6
+            const visible = showAllChips ? entries : entries.slice(0, max)
+            const overflow = showAllChips ? 0 : entries.length - visible.length
+
+            const removeChip = (key: keyof FilterOptions, value?: string) => {
+              if (Array.isArray(filters[key])) {
+                const cur = (filters[key] as string[]) || []
+                const next = cur.filter((v) => v !== value)
+                handleFilterChange(key, next.length ? next : undefined)
+              } else {
+                handleFilterChange(key, undefined)
+              }
+            }
+
+            return (
+              <div className='v2-only -mt-1 mb-1 px-1'>
+                <div className='flex flex-wrap items-center gap-1'>
+                  {visible.map((c) => (
+                    <Chip
+                      key={c.id}
+                      size='xs'
+                      variant='subtle'
+                      className='group'
+                    >
+                      <span className='truncate max-w-[160px]'>{c.label}</span>
+                      <button
+                        type='button'
+                        className='ml-1 rounded p-0.5 hover:bg-muted/40'
+                        aria-label={`Remove ${c.label}`}
+                        onClick={() => removeChip(c.key, c.value)}
+                      >
+                        <X className='h-3 w-3' />
+                      </button>
+                    </Chip>
+                  ))}
+                  {overflow > 0 && (
+                    <Chip
+                      size='xs'
+                      variant='outline'
+                      className='cursor-pointer'
+                      onClick={() => setShowAllChips(true)}
+                    >
+                      +{overflow} more
+                    </Chip>
+                  )}
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='ml-auto'
+                    onClick={clearAllFilters}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+                {/* Hidden overflow chips revealed when "+N more" clicked */}
+                <div id='filters-all-chips' className='hidden mt-1'>
+                  <div className='flex flex-wrap items-center gap-1'>
+                    {entries.slice(max).map((c) => (
+                      <Chip
+                        key={`more:${c.id}`}
+                        size='xs'
+                        variant='subtle'
+                        className='group'
+                      >
+                        <span className='truncate max-w-[160px]'>
+                          {c.label}
+                        </span>
+                        <button
+                          type='button'
+                          className='ml-1 rounded p-0.5 hover:bg-muted/40'
+                          aria-label={`Remove ${c.label}`}
+                          onClick={() => removeChip(c.key, c.value)}
+                        >
+                          <X className='h-3 w-3' />
+                        </button>
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
           {/* Status Filter */}
           <Collapsible
             open={openSections.status}
@@ -286,7 +430,9 @@ export function FilterSidebar({
               <Button variant='ghost' className='w-full justify-between p-2'>
                 Status
                 {filters.status?.length && (
-                  <Badge variant='secondary'>{filters.status.length}</Badge>
+                  <Badge variant='secondary' size='compact'>
+                    {filters.status.length}
+                  </Badge>
                 )}
               </Button>
             </CollapsibleTrigger>
@@ -334,7 +480,9 @@ export function FilterSidebar({
               <Button variant='ghost' className='w-full justify-between p-2'>
                 Priority
                 {filters.priority?.length && (
-                  <Badge variant='secondary'>{filters.priority.length}</Badge>
+                  <Badge variant='secondary' size='compact'>
+                    {filters.priority.length}
+                  </Badge>
                 )}
               </Button>
             </CollapsibleTrigger>
@@ -371,7 +519,9 @@ export function FilterSidebar({
               <Button variant='ghost' className='w-full justify-between p-2'>
                 Assignee
                 {filters.assignee?.length && (
-                  <Badge variant='secondary'>{filters.assignee.length}</Badge>
+                  <Badge variant='secondary' size='compact'>
+                    {filters.assignee.length}
+                  </Badge>
                 )}
               </Button>
             </CollapsibleTrigger>
@@ -391,7 +541,7 @@ export function FilterSidebar({
                 />
                 <Label
                   htmlFor='assignee-unassigned'
-                  className='text-sm font-medium text-gray-600'
+                  className='text-sm font-medium text-muted-foreground'
                 >
                   Unassigned
                 </Label>
@@ -430,7 +580,9 @@ export function FilterSidebar({
               <Button variant='ghost' className='w-full justify-between p-2'>
                 Issue Type
                 {filters.issueType?.length && (
-                  <Badge variant='secondary'>{filters.issueType.length}</Badge>
+                  <Badge variant='secondary' size='compact'>
+                    {filters.issueType.length}
+                  </Badge>
                 )}
               </Button>
             </CollapsibleTrigger>
@@ -472,7 +624,9 @@ export function FilterSidebar({
                   >
                     Sprint
                     {filters.sprint?.length && (
-                      <Badge variant='secondary'>{filters.sprint.length}</Badge>
+                      <Badge variant='secondary' size='compact'>
+                        {filters.sprint.length}
+                      </Badge>
                     )}
                   </Button>
                 </CollapsibleTrigger>
@@ -559,7 +713,7 @@ export function FilterSidebar({
                         >
                           Release
                           {filters.release?.length && (
-                            <Badge variant='secondary'>
+                            <Badge variant='secondary' size='compact'>
                               {filters.release.length}
                             </Badge>
                           )}
@@ -583,7 +737,7 @@ export function FilterSidebar({
                           />
                           <Label
                             htmlFor='release-none'
-                            className='text-sm font-medium text-gray-600'
+                            className='text-sm font-medium text-muted-foreground'
                           >
                             No Release
                           </Label>
@@ -602,7 +756,7 @@ export function FilterSidebar({
                               className='w-full justify-between px-1 py-2'
                             >
                               <span>Unreleased</span>
-                              <Badge variant='secondary'>
+                              <Badge variant='secondary' size='compact'>
                                 {unreleased.length}
                               </Badge>
                             </Button>
@@ -902,6 +1056,17 @@ export function FilterSidebar({
             </Collapsible>
           )}
         </CardContent>
+        {/* Mobile footer actions (V2 only) */}
+        <div className='v2-only lg:hidden shrink-0 border-t p-3 bg-background'>
+          <div className='flex items-center justify-between gap-2'>
+            <Button variant='ghost' size='sm' onClick={clearAllFilters}>
+              Clear All
+            </Button>
+            <Button size='sm' onClick={onToggle}>
+              Close
+            </Button>
+          </div>
+        </div>
       </Card>
     </>
   )

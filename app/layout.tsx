@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { ToastProviderStore } from '@/lib/use-toast'
 import { Analytics } from '@vercel/analytics/next'
+import DesignInit from '@/components/ui/design-init'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -26,7 +27,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang='en' suppressHydrationWarning>
-      <body className={`${inter.className} dark`}>
+      <body className={`${inter.className} dark`} data-ui='v2'>
+        <DesignInit />
         <ToastProviderStore>
           <ThemeProvider
             attribute='class'

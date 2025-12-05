@@ -18,31 +18,31 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
     switch (priority.toLowerCase()) {
       case 'critical':
       case 'highest':
-        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800'
+        return 'bg-[hsl(var(--destructive))/14] text-[hsl(var(--destructive))] border-[hsl(var(--destructive))/30]'
       case 'high':
-        return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-800'
+        return 'bg-[hsl(var(--chart-4))/14] text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))/30]'
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-800'
+        return 'bg-[hsl(var(--chart-1))/14] text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))/30]'
       case 'low':
       case 'lowest':
-        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800'
+        return 'bg-[hsl(var(--chart-5))/14] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
+        return 'bg-muted/30 text-muted-foreground border-border'
     }
   }
 
   const getIssueTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
       case 'bug':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+        return 'bg-[hsl(var(--destructive))/14] text-[hsl(var(--destructive))] border-[hsl(var(--destructive))/30]'
       case 'story':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+        return 'bg-[hsl(var(--chart-1))/14] text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))/30]'
       case 'task':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+        return 'bg-[hsl(var(--chart-5))/14] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]'
       case 'epic':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+        return 'bg-[hsl(var(--primary))/14] text-[hsl(var(--primary))] border-[hsl(var(--primary))/30]'
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+        return 'bg-muted/30 text-muted-foreground border-border'
     }
   }
 
@@ -68,7 +68,7 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
         <div className='flex items-center justify-between gap-2'>
           <Badge
             variant='secondary'
-            className={`relative shrink-0 font-mono text-xs font-semibold cursor-pointer select-none transition-transform active:scale-95 ${copiedId ? 'ring-2 ring-green-400/60 ring-offset-2 ring-offset-background' : ''}`}
+            className={`relative shrink-0 font-mono text-xs font-semibold cursor-pointer select-none transition-transform active:scale-95 ${copiedId ? 'ring-2 ring-[hsl(var(--chart-5))]/60 ring-offset-2 ring-offset-background' : ''}`}
             title='Click to copy issue key'
             role='button'
             aria-label='Copy issue key to clipboard'
@@ -98,7 +98,7 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
             <span className='inline-flex items-center gap-2'>
               {copiedId ? (
                 <>
-                  <CheckCircle className='h-3.5 w-3.5 text-green-600' />
+                  <CheckCircle className='h-3.5 w-3.5 text-[hsl(var(--chart-5))]' />
                   Copied!
                 </>
               ) : (
@@ -121,7 +121,13 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
         <div className='flex items-center justify-between gap-2'>
           <Badge
             variant='outline'
-            className={`shrink-0 text-xs ${getIssueTypeColor(issue.issuetype.name)}`}
+            className={`v1-only shrink-0 text-xs ${getIssueTypeColor(issue.issuetype.name)}`}
+          >
+            {issue.issuetype.name}
+          </Badge>
+          <Badge
+            variant='outline'
+            className='v2-only shrink-0 text-xs border-border bg-muted/20 text-muted-foreground'
           >
             {issue.issuetype.name}
           </Badge>
@@ -131,7 +137,10 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
       <CardContent className='space-y-4 pt-0'>
         {/* Issue title */}
         <div>
-          <h3 className='text-foreground line-clamp-3 text-sm leading-tight font-medium break-words'>
+          <h3 className='v1-only text-foreground line-clamp-3 text-sm leading-tight font-medium break-words'>
+            {issue.summary}
+          </h3>
+          <h3 className='v2-only text-foreground line-clamp-3 text-base leading-snug font-semibold break-words'>
             {issue.summary}
           </h3>
         </div>
@@ -196,7 +205,7 @@ export function IssueCard({ issue, onClick, onHover }: IssueCardProps) {
             <div
               className={`ml-2 flex shrink-0 items-center gap-1 text-xs ${
                 isOverdue
-                  ? 'text-red-600 dark:text-red-400'
+                  ? 'text-[hsl(var(--destructive))]'
                   : 'text-muted-foreground'
               }`}
             >
