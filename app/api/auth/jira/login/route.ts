@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 export async function GET() {
   const clientId = process.env.ATLASSIAN_CLIENT_ID
   const redirectUri = process.env.ATLASSIAN_REDIRECT_URI
+  console.log(clientId, redirectUri)
   const scopes =
     process.env.ATLASSIAN_SCOPES ||
     'read:jira-user read:jira-work offline_access'

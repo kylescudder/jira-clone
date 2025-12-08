@@ -693,6 +693,15 @@ export function IssueEditModal({
       setFreshIssue(null)
       loadEditData()
       loadDetails()
+      // Also fetch the full issue payload (with attachments) so inline
+      // descriptionHtml is rendered with correct attachment URLs on first open.
+      ;(async () => {
+        try {
+          await loadIssueBase()
+        } catch (e) {
+          // ignore
+        }
+      })()
       // Load versions for this project and seed selection
       ;(async () => {
         try {
