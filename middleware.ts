@@ -29,6 +29,14 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  const issueKeyMatch = pathname.match(/^\/([A-Za-z0-9]+-\d+)\/?$/)
+  if (issueKeyMatch) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/'
+    url.searchParams.set('issueKey', issueKeyMatch[1])
+    return NextResponse.rewrite(url)
+  }
+
   return NextResponse.next()
 }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { KanbanBoard } from '@/components/kanban-board'
 import { IssueEditModal } from '@/components/issue-edit-modal'
 import { SprintSelector } from '@/components/sprint-selector'
@@ -22,6 +23,7 @@ import {
   preloadIssueData,
   preloadIssues,
   fetchIssueDetails,
+  fetchIssue,
   prefetchProjectLookups
 } from '@/lib/client-api'
 import { Badge } from '@/components/ui/badge'
@@ -101,6 +103,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null)
+  const [deepLinkedIssueKey, setDeepLinkedIssueKey] = useState<string | null>(
+    null
+  )
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
 
   // Keyboard shortcut: 'c' to open Create (New Issue) modal
   useEffect(() => {
@@ -115,6 +122,46 @@ export default function HomePage() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  useEffect(() => {
+    if (!deepLinkedIssueKey) return
+    let isCancelled = false
+
+    const loadDeepLinkedIssue = async () => {
+      try {
+        const issue = await fetchIssue(deepLinkedIssueKey)
+        if (!issue) {
+          setError('Failed to load the requested issue.')
+          return
+        }
+
+        if (isCancelled) return
+
+        const issueProjectKey = issue.key.split('-')[0]
+        setSelectedProject((prev) =>
+          prev === issueProjectKey ? prev : issueProjectKey
+        )
+        setSelectedIssue(issue)
+
+        try {
+          await fetchIssueDetails(deepLinkedIssueKey)
+        } catch (err) {
+          console.warn('Failed to preload issue details for deep link:', err)
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Error loading deep-linked issue:', err)
+          setError('Failed to load the requested issue.')
+        }
+      }
+    }
+
+    void loadDeepLinkedIssue()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [deepLinkedIssueKey])
 
   // Loading tracker state
   const [trackerVisible, setTrackerVisible] = useState(false)
@@ -249,6 +296,17 @@ export default function HomePage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    const queryIssueKey =
+      searchParams?.get('issueKey') || searchParams?.get('issue')
+    const pathIssueKey = pathname?.match(/^\/([A-Za-z0-9]+-\d+)\/?$/)?.[1]
+    const normalizedKey = queryIssueKey || pathIssueKey || null
+
+    setDeepLinkedIssueKey((prev) =>
+      normalizedKey === prev ? prev : normalizedKey
+    )
+  }, [pathname, searchParams])
 
   // Save to localStorage when project changes
   useEffect(() => {
