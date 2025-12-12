@@ -314,6 +314,45 @@ export async function deleteIssueComment(
   }
 }
 
+export interface UploadedAttachment {
+  id: string
+  filename: string
+  mimeType?: string
+  size?: number
+}
+
+export async function uploadIssueAttachments(
+  issueKey: string,
+  files: File[]
+): Promise<UploadedAttachment[] | null> {
+  try {
+    const formData = new FormData()
+    for (const file of files) {
+      formData.append('file', file, file.name)
+    }
+
+    const response = await fetch(`/api/issues/${issueKey}/attachments`, {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Attachment upload failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return null
+    }
+
+    const data = await response.json()
+    return data as UploadedAttachment[]
+  } catch (error) {
+    console.error('Error uploading attachments:', error)
+    return null
+  }
+}
+
 export async function fetchIssues(
   projectKey: string,
   filters?: FilterOptions

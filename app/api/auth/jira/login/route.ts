@@ -6,7 +6,7 @@ export async function GET() {
   console.log(clientId, redirectUri)
   const scopes =
     process.env.ATLASSIAN_SCOPES ||
-    'read:jira-user read:jira-work offline_access'
+    'read:jira-user read:jira-work write:jira-work offline_access'
 
   if (!clientId || !redirectUri) {
     const missing: string[] = []
