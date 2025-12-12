@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { KanbanBoard } from '@/components/kanban-board'
-import { IssueEditModal } from '@/components/issue-edit-modal'
+import { IssueModal } from '@/components/issue-modal'
 import { SprintSelector } from '@/components/sprint-selector'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,6 @@ import { KeyboardKey } from '@/components/ui/keyboard-key'
 import { Input } from '@/components/ui/input'
 import { LoadingTracker } from '@/components/loading-tracker'
 import type { TrackerStatus } from '@/components/loading-tracker'
-import { NewIssueModal } from '@/components/new-issue-modal'
 import { isEditableTarget } from '@/lib/utils'
 import { STORAGE_KEYS } from '@/lib/constants'
 import { JiraIssue } from '@/types/JiraIssue'
@@ -470,8 +469,7 @@ function HomePageContent() {
       openTracker(1, 'Loading sprints...')
       const sprintsData = await fetchProjectSprints(projectKey)
       console.log(
-        `Loaded ${sprintsData.length} sprints for project ${projectKey}:`,
-        sprintsData
+        `Loaded ${sprintsData.length} sprints for project ${projectKey}`
       )
 
       setSprints(sprintsData)
@@ -899,15 +897,16 @@ function HomePageContent() {
         )}
       </div>
 
-      <IssueEditModal
+      <IssueModal
+        issueId={selectedIssue?.key}
         issue={selectedIssue}
         projectKey={selectedProject}
         isOpen={!!selectedIssue}
         onClose={() => setSelectedIssue(null)}
-        onUpdate={handleIssueUpdate}
+        onUpdated={handleIssueUpdate}
       />
 
-      <NewIssueModal
+      <IssueModal
         projectKey={selectedProject}
         isOpen={newIssueOpen}
         onClose={() => setNewIssueOpen(false)}

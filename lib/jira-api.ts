@@ -1379,6 +1379,27 @@ export async function updateIssueFixVersions(
   }
 }
 
+export async function updateIssueDescription(
+  issueKey: string,
+  description: string
+): Promise<boolean> {
+  try {
+    const bodyADF = buildADFBodyFromText(description)
+    await jiraFetch(`/issue/${issueKey}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        fields: {
+          description: bodyADF
+        }
+      })
+    })
+    return true
+  } catch (error) {
+    console.error('Error updating issue description:', error)
+    return false
+  }
+}
+
 export async function getIssue(issueKey: string): Promise<JiraIssue | null> {
   try {
     const data = await jiraFetch(`/issue/${issueKey}?fields=*all`)

@@ -119,6 +119,7 @@ export async function fetchProjects(): Promise<JiraProject[]> {
 export async function fetchProjectUsers(
   projectKey: string
 ): Promise<JiraUser[]> {
+  if (!projectKey?.trim()) return []
   const cacheKey = `projectUsers:${projectKey}`
   try {
     return await fetchWithCache<JiraUser[]>({
@@ -135,6 +136,7 @@ export async function fetchProjectUsers(
 export async function fetchProjectSprints(
   projectKey: string
 ): Promise<Array<{ id: string; name: string; state: string }>> {
+  if (!projectKey?.trim()) return []
   try {
     const response = await fetch(`/api/projects/${projectKey}/sprints`)
     if (!response.ok) {
@@ -548,6 +550,7 @@ export async function fetchProjectVersions(
 ): Promise<
   Array<{ id: string; name: string; released: boolean; archived?: boolean }>
 > {
+  if (!projectKey?.trim()) return []
   const cacheKey = `versions:${projectKey}`
   type Version = {
     id: string
@@ -564,6 +567,23 @@ export async function fetchProjectVersions(
   } catch (error) {
     console.error('Error fetching project versions:', error)
     return getCachedData<Version[]>(cacheKey) || []
+  }
+}
+
+export async function updateIssueDescription(
+  issueKey: string,
+  description: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/description`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description })
+    })
+    return response.ok
+  } catch (error) {
+    console.error('Error updating issue description:', error)
+    return false
   }
 }
 
@@ -610,6 +630,7 @@ export async function fetchIssue(issueKey: string): Promise<JiraIssue | null> {
 export async function fetchProjectComponents(
   projectKey: string
 ): Promise<Array<{ id: string; name: string }>> {
+  if (!projectKey?.trim()) return []
   const cacheKey = `components:${projectKey}`
   try {
     return await fetchWithCache<Array<{ id: string; name: string }>>({
@@ -659,6 +680,7 @@ export async function fetchIssueTypes(
 ): Promise<
   Array<{ id: string; name: string; subtask?: boolean; iconUrl?: string }>
 > {
+  if (!projectKey?.trim()) return []
   const cacheKey = `issuetypes:${projectKey}`
   type IssueType = {
     id: string

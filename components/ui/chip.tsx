@@ -30,7 +30,8 @@ const chipVariants = cva(
 )
 
 export interface ChipProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof chipVariants> {
   asChild?: boolean
 }
