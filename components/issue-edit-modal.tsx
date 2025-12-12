@@ -53,6 +53,8 @@ import {
   fetchIssue
 } from '@/lib/client-api'
 import { linkIssueClient } from '@/lib/client-api'
+import { usePasteImage, insertAtCursor } from '@/lib/use-paste-image'
+import { useToast } from '@/lib/use-toast'
 import { LinkIssuePicker } from '@/components/link-issue-picker'
 import { getCachedData } from '@/lib/client-api'
 import {
@@ -289,6 +291,23 @@ export function IssueEditModal({
     )
     const [editMentionIndex, setEditMentionIndex] = useState(0)
 
+    // Paste image handling for edit comment
+    const {
+      onPaste: handleEditCommentPaste,
+      isUploading: isUploadingEditComment
+    } = usePasteImage({
+      issueKey,
+      onInsert: (token, textarea) => {
+        insertAtCursor(textarea, token, setEditText)
+      },
+      onUploadEnd: (success, error) => {
+        if (success) {
+          // Refresh to show new attachment
+          onChanged()
+        }
+      }
+    })
+
     const detectMentionTrigger = (value: string, caret: number) => {
       const prefix = value.slice(0, caret)
       const m = prefix.match(/(^|\s)@([\w .\-]{1,40})$/)
@@ -521,8 +540,17 @@ export function IssueEditModal({
                     setEditMentionOpen(false)
                   }
                 }}
-                disabled={saving}
+                onPaste={handleEditCommentPaste}
+                disabled={saving || isUploadingEditComment}
               />
+              {isUploadingEditComment && (
+                <div className='absolute inset-0 flex items-center justify-center bg-background/80 rounded-md'>
+                  <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+                    <Loader2 className='h-4 w-4 animate-spin' />
+                    Uploading image...
+                  </div>
+                </div>
+              )}
               {editMentionOpen && projectUsers?.length ? (
                 <div className='absolute z-20 left-0 mt-1 w-64 max-h-60 overflow-auto rounded-md border border-border bg-popover shadow-sm'>
                   <div className='p-2 border-b border-border text-xs text-muted-foreground'>
@@ -623,7 +651,12 @@ export function IssueEditModal({
   const [hasChanges, setHasChanges] = useState(false)
   const [details, setDetails] = useState<JiraIssueDetails | null>(null)
   const [projectVersions, setProjectVersions] = useState<
-    Array<{ id: string; name: string; released: boolean; archived?: boolean }>
+    Array<{
+      id: string
+      name: string
+      released: boolean
+      archived?: boolean
+    }>
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [detailsLoading, setDetailsLoading] = useState(false)
@@ -648,6 +681,38 @@ export function IssueEditModal({
   const [newMentionQuery, setNewMentionQuery] = useState('')
   const [newMentionStart, setNewMentionStart] = useState<number | null>(null)
   const [newMentionIndex, setNewMentionIndex] = useState(0)
+
+  // Toast for paste image feedback
+  const { toast } = useToast()
+
+  // Paste image handling for new comment
+  const { onPaste: handleNewCommentPaste, isUploading: isUploadingNewComment } =
+    usePasteImage({
+      issueKey: issue?.key ?? null,
+      onInsert: (token, textarea) => {
+        insertAtCursor(textarea, token, setNewComment)
+      },
+      onUploadStart: () => {
+        // Optionally show uploading state
+      },
+      onUploadEnd: (success, error) => {
+        if (success) {
+          toast({
+            title: 'Image uploaded',
+            description:
+              'Image has been attached and inserted into your comment.'
+          })
+          // Refresh attachments list
+          loadDetails()
+        } else {
+          toast({
+            title: 'Upload failed',
+            description: error || 'Failed to upload image',
+            variant: 'destructive'
+          })
+        }
+      }
+    })
 
   const detectNewMentionTrigger = (value: string, caret: number) => {
     const prefix = value.slice(0, caret)
@@ -1623,8 +1688,17 @@ export function IssueEditModal({
                                 setNewMentionOpen(false)
                               }
                             }}
-                            disabled={postingComment}
+                            onPaste={handleNewCommentPaste}
+                            disabled={postingComment || isUploadingNewComment}
                           />
+                          {isUploadingNewComment && (
+                            <div className='absolute inset-0 flex items-center justify-center bg-background/80 rounded-md'>
+                              <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+                                <Loader2 className='h-4 w-4 animate-spin' />
+                                Uploading image...
+                              </div>
+                            </div>
+                          )}
                           {newMentionOpen && projectUsers?.length ? (
                             <div className='absolute z-20 left-0 mt-1 w-64 max-h-60 overflow-auto rounded-md border border-border bg-popover shadow-sm'>
                               <div className='p-2 border-b border-border text-xs text-muted-foreground'>
