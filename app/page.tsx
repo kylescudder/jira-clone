@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { Suspense, useState, useEffect, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { KanbanBoard } from '@/components/kanban-board'
 import { IssueEditModal } from '@/components/issue-edit-modal'
@@ -48,7 +48,7 @@ interface Sprint {
   state: string
 }
 
-export default function HomePage() {
+function HomePageContent() {
   const [issues, setIssues] = useState<JiraIssue[]>([])
   const [newIssueOpen, setNewIssueOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -944,5 +944,20 @@ export default function HomePage() {
         onClose={() => setTrackerVisible(false)}
       />
     </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='flex h-screen items-center justify-center text-muted-foreground'>
+          <Loader2 className='h-5 w-5 animate-spin' />
+          <span className='ml-2 text-sm'>Loading board…</span>
+        </div>
+      }
+    >
+      <HomePageContent />
+    </Suspense>
   )
 }
