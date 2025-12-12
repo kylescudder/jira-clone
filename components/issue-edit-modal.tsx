@@ -694,7 +694,8 @@ export function IssueEditModal({
         if (success) {
           toast({
             title: 'Image uploaded',
-            description: 'Image has been attached and inserted into your comment.'
+            description:
+              'Image has been attached and inserted into your comment.'
           })
           // Refresh attachments list
           loadDetails()
