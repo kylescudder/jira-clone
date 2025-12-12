@@ -651,7 +651,12 @@ export function IssueEditModal({
   const [hasChanges, setHasChanges] = useState(false)
   const [details, setDetails] = useState<JiraIssueDetails | null>(null)
   const [projectVersions, setProjectVersions] = useState<
-    Array<{ id: string; name: string; released: boolean; archived?: boolean }>
+    Array<{
+      id: string
+      name: string
+      released: boolean
+      archived?: boolean
+    }>
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [detailsLoading, setDetailsLoading] = useState(false)
