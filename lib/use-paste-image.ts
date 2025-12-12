@@ -83,7 +83,9 @@ export function usePasteImage(options: PasteImageOptions): PasteImageResult {
       const filename = `pasted-image-${timestamp}.${extension}`
 
       // Create a new file with the proper filename
-      const namedFile = new File([imageFile], filename, { type: imageFile.type })
+      const namedFile = new File([imageFile], filename, {
+        type: imageFile.type
+      })
 
       // If no issueKey, queue the image for later upload
       if (!issueKey) {

@@ -45,19 +45,13 @@ export async function POST(
     const files = formData.getAll('file') as File[]
 
     if (!files || files.length === 0) {
-      return NextResponse.json(
-        { error: 'No files provided' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
 
     const { base, authorization } = await getAuthAndBase()
 
     if (!authorization) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
     // Build FormData for Jira API
@@ -82,7 +76,11 @@ export async function POST(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Jira attachment upload failed:', response.status, errorText)
+      console.error(
+        'Jira attachment upload failed:',
+        response.status,
+        errorText
+      )
       return NextResponse.json(
         { error: 'Failed to upload attachment', details: errorText },
         { status: response.status }
@@ -93,13 +91,15 @@ export async function POST(
     const data = await response.json()
 
     // Map to a cleaner format
-    const attachments = (Array.isArray(data) ? data : [data]).map((att: any) => ({
-      id: String(att.id),
-      filename: att.filename,
-      mimeType: att.mimeType,
-      size: att.size,
-      content: att.content
-    }))
+    const attachments = (Array.isArray(data) ? data : [data]).map(
+      (att: any) => ({
+        id: String(att.id),
+        filename: att.filename,
+        mimeType: att.mimeType,
+        size: att.size,
+        content: att.content
+      })
+    )
 
     return NextResponse.json(attachments)
   } catch (error) {

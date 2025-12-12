@@ -308,9 +308,50 @@ export function adfToHtml(
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+  const buildAttachmentUrl = (
+    id: string,
+    disposition: 'inline' | 'attachment' = 'inline'
+  ) =>
+    issueKey
+      ? `/api/issues/${issueKey}/attachments/${id}?disposition=${disposition}`
+      : `/api/attachments/${id}?disposition=${disposition}`
+
+  const renderAttachmentToken = (id: string) => {
+    const att = attachments?.find((a) => String(a.id) === String(id))
+    if (!att) return esc(`<attachment:${id}>`)
+    const filename = att.filename || `attachment-${id}`
+    const mime = (att as any).mimeType as string | undefined
+    const looksImage =
+      mime?.startsWith('image/') ||
+      /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(filename)
+    const inlineUrl = buildAttachmentUrl(id, 'inline')
+    const downloadUrl = buildAttachmentUrl(id, 'attachment')
+    if (looksImage) {
+      return `<img src="${inlineUrl}" alt="${esc(filename)}" style="max-width:100%; height:auto; border-radius:4px;" />`
+    }
+    return `<a href="${downloadUrl}" target="_blank" rel="noopener noreferrer">${esc(filename)}</a>`
+  }
+
+  const renderTextWithTokens = (text: string) => {
+    if (!text) return ''
+    const re = /<attachment:([A-Za-z0-9_-]+)>/g
+    let out = ''
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text))) {
+      if (m.index > last) {
+        out += esc(text.slice(last, m.index))
+      }
+      out += renderAttachmentToken(m[1])
+      last = m.index + m[0].length
+    }
+    out += esc(text.slice(last))
+    return out
+  }
+
   // If the input is a plain string (legacy/plain text), escape and preserve newlines
   if (typeof adf === 'string') {
-    const safe = esc(adf)
+    const safe = renderTextWithTokens(adf)
     // Convert consecutive blank lines to separate paragraphs
     const parts = safe
       .split(/\n{2,}/)
@@ -319,8 +360,9 @@ export function adfToHtml(
   }
 
   const renderMarks = (text: string, marks?: any[]) => {
-    if (!marks || !Array.isArray(marks) || marks.length === 0) return esc(text)
-    let html = esc(text)
+    if (!marks || !Array.isArray(marks) || marks.length === 0)
+      return renderTextWithTokens(text)
+    let html = renderTextWithTokens(text)
     // Apply marks in a stable order
     const order = {
       link: 1,
@@ -543,7 +585,10 @@ export function adfToHtml(
   }
 
   try {
-    if (typeof adf === 'string') return `<p>${esc(adf)}</p>`
+    if (typeof adf === 'string') {
+      const safe = renderTextWithTokens(adf)
+      return `<p>${safe}</p>`
+    }
 
     // If full document
     if (adf.type === 'doc') return renderNode(adf)

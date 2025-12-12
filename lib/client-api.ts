@@ -346,7 +346,18 @@ export async function uploadIssueAttachments(
     }
 
     const data = await response.json()
-    return data as UploadedAttachment[]
+
+    // Handle both plain arrays and wrapped responses
+    if (Array.isArray(data)) {
+      return data as UploadedAttachment[]
+    }
+
+    if (data?.attachments && Array.isArray(data.attachments)) {
+      return data.attachments as UploadedAttachment[]
+    }
+
+    console.error('Unexpected attachment upload response shape:', data)
+    return null
   } catch (error) {
     console.error('Error uploading attachments:', error)
     return null
