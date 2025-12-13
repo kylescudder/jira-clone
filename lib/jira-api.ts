@@ -826,6 +826,26 @@ export async function updateIssueAssignee(
   }
 }
 
+export async function updateIssuePriority(
+  issueKey: string,
+  priorityName: string
+): Promise<boolean> {
+  try {
+    await jiraFetch(`/issue/${issueKey}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        fields: {
+          priority: { name: priorityName }
+        }
+      })
+    })
+    return true
+  } catch (error) {
+    console.error('Error updating issue priority:', error)
+    return false
+  }
+}
+
 export async function getIssueDetails(issueKey: string) {
   try {
     // Attachments (fetch via fields)
@@ -1531,6 +1551,7 @@ export async function createIssue(params: {
   linkType?: string
   versionIds?: string[]
   sprintId?: string
+  priority?: string
 }): Promise<{ key: string } | null> {
   const {
     projectKey,
@@ -1542,7 +1563,8 @@ export async function createIssue(params: {
     linkIssueKey,
     linkType,
     versionIds,
-    sprintId
+    sprintId,
+    priority
   } = params
   try {
     const adf = buildADFBodyFromText(description)
@@ -1553,6 +1575,10 @@ export async function createIssue(params: {
       ...(assigneeAccountId
         ? { assignee: { accountId: assigneeAccountId } }
         : {})
+    }
+
+    if (priority && priority.trim()) {
+      fields.priority = { name: priority.trim() }
     }
 
     // Include component as a required field during creation

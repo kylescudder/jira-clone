@@ -402,6 +402,42 @@ export async function deleteIssueAttachment(
   }
 }
 
+export async function updateIssuePriority(
+  issueKey: string,
+  priority: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/priority`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Priority update failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`${CACHE_PREFIX}issue:${issueKey}`)
+        localStorage.removeItem(`${CACHE_PREFIX}issueDetails:${issueKey}`)
+      }
+    } catch {
+      // ignore cache cleanup errors
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error updating priority:', error)
+    return false
+  }
+}
+
 export async function fetchIssues(
   projectKey: string,
   filters?: FilterOptions
@@ -691,6 +727,7 @@ export async function createIssueClient(params: {
   linkType?: string
   versionIds?: string[]
   sprintId?: string
+  priority?: string
 }): Promise<{ key: string } | null> {
   try {
     const response = await fetch(`/api/issues`, {

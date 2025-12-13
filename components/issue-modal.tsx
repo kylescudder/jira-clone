@@ -46,10 +46,14 @@ import {
   Calendar,
   Check,
   CheckCircle,
+  ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  ChevronsDown,
+  ChevronsUp,
   Clock,
   Component,
+  Minus,
   Link as LinkIcon,
   Loader2,
   RefreshCw,
@@ -80,7 +84,8 @@ import {
   updateIssueFixVersions,
   updateIssueStatus,
   uploadIssueAttachments,
-  deleteIssueAttachment
+  deleteIssueAttachment,
+  updateIssuePriority
 } from '@/lib/client-api'
 import { usePasteImage, insertAtCursor } from '@/lib/use-paste-image'
 import { useToast } from '@/lib/use-toast'
@@ -96,6 +101,38 @@ import { JiraComment } from '@/types/JiraComment'
 import { JiraIssue } from '@/types/JiraIssue'
 import { JiraIssueDetails } from '@/types/JiraIssueDetails'
 import { JiraUser } from '@/types/JiraUser'
+
+const PRIORITY_OPTIONS = [
+  { value: 'Highest', tone: 'text-[hsl(var(--destructive))]' },
+  { value: 'High', tone: 'text-[hsl(var(--chart-4))]' },
+  { value: 'Medium', tone: 'text-[hsl(var(--chart-1))]' },
+  { value: 'Low', tone: 'text-[hsl(var(--chart-5))]' },
+  { value: 'Lowest', tone: 'text-muted-foreground' }
+]
+
+const PriorityGlyph = ({ level }: { level: string }) => {
+  const normalized = level.toLowerCase()
+  const tone =
+    PRIORITY_OPTIONS.find((p) => p.value.toLowerCase() === normalized)?.tone ||
+    'text-muted-foreground'
+
+  if (normalized === 'highest') {
+    return <ChevronsUp className={`h-3.5 w-3.5 ${tone}`} />
+  }
+  if (normalized === 'high') {
+    return <ChevronUp className={`h-3.5 w-3.5 ${tone}`} />
+  }
+  if (normalized === 'medium') {
+    return <Minus className={`h-3.5 w-3.5 ${tone}`} />
+  }
+  if (normalized === 'low') {
+    return <ChevronDown className={`h-3.5 w-3.5 ${tone}`} />
+  }
+  if (normalized === 'lowest') {
+    return <ChevronsDown className={`h-3.5 w-3.5 ${tone}`} />
+  }
+  return <Minus className={`h-3.5 w-3.5 ${tone}`} />
+}
 
 interface IssueModalProps {
   issueId?: string
@@ -733,6 +770,7 @@ function IssueEditContent({
     }>
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
+  const [selectedPriority, setSelectedPriority] = useState<string>('')
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(true)
   const [attachmentsOpen, setAttachmentsOpen] = useState(true)
@@ -865,6 +903,7 @@ function IssueEditContent({
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
       setSelectedTransition('')
       setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
+      setSelectedPriority(issue.priority?.name || '')
       setHasChanges(false)
     }
   }, [issue, isOpen])
@@ -897,18 +936,38 @@ function IssueEditContent({
   // Check for changes
   useEffect(() => {
     if (!issue) return
+    const baseIssue = freshIssue || issue
 
-    const currentAssignee = issue.assignee?.displayName || 'unassigned'
+    const currentAssignee = baseIssue.assignee?.displayName || 'unassigned'
     const hasStatusChange = selectedTransition !== ''
     const hasAssigneeChange = selectedAssignee !== currentAssignee
-    const originalVersionIds = (issue.fixVersions || []).map((v) => v.id).sort()
+    const originalVersionIds = (baseIssue.fixVersions || [])
+      .map((v) => v.id)
+      .sort()
     const currentVersionIds = [...selectedVersionIds].sort()
     const hasVersionChange =
       originalVersionIds.length !== currentVersionIds.length ||
       originalVersionIds.some((v, i) => v !== currentVersionIds[i])
+    const basePriority = baseIssue.priority?.name || ''
+    const hasPriorityChange =
+      selectedPriority &&
+      selectedPriority.trim().toLowerCase() !==
+        basePriority.trim().toLowerCase()
 
-    setHasChanges(hasStatusChange || hasAssigneeChange || hasVersionChange)
-  }, [selectedTransition, selectedAssignee, selectedVersionIds, issue])
+    setHasChanges(
+      hasStatusChange ||
+        hasAssigneeChange ||
+        hasVersionChange ||
+        hasPriorityChange
+    )
+  }, [
+    selectedTransition,
+    selectedAssignee,
+    selectedVersionIds,
+    selectedPriority,
+    issue,
+    freshIssue
+  ])
 
   const loadDetails = async () => {
     if (!issue) return
@@ -1046,6 +1105,7 @@ function IssueEditContent({
         setFreshIssue(updated)
         setSelectedAssignee(updated.assignee?.displayName || 'unassigned')
         setSelectedVersionIds((updated.fixVersions || []).map((v) => v.id))
+        setSelectedPriority(updated.priority?.name || '')
       }
     } catch (e) {
       // ignore
@@ -1105,6 +1165,30 @@ function IssueEditContent({
         }
       }
 
+      // Update priority if changed
+      const currentPriority = issue.priority?.name || ''
+      if (
+        selectedPriority &&
+        selectedPriority.trim().toLowerCase() !==
+          currentPriority.trim().toLowerCase()
+      ) {
+        const ok = await updateIssuePriority(issue.key, selectedPriority)
+        if (ok) {
+          hasUpdates = true
+          updates.push(`Priority updated to ${selectedPriority}`)
+          setFreshIssue((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  priority: { ...prev.priority, name: selectedPriority }
+                }
+              : prev
+          )
+        } else {
+          throw new Error('Failed to update priority')
+        }
+      }
+
       // Update fix versions if changed
       {
         const originalVersionIds = (issue.fixVersions || [])
@@ -1161,6 +1245,7 @@ function IssueEditContent({
     if (issue) {
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
       setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
+      setSelectedPriority(issue.priority?.name || '')
     }
     onClose()
   }
@@ -1342,9 +1427,12 @@ function IssueEditContent({
                 </Badge>
                 <Badge
                   variant='outline'
-                  className={getPriorityColor(issue.priority.name)}
+                  className={getPriorityColor(displayIssue.priority.name)}
                 >
-                  {issue.priority.name}
+                  <span className='inline-flex items-center gap-1'>
+                    <PriorityGlyph level={displayIssue.priority.name} />
+                    {displayIssue.priority.name}
+                  </span>
                 </Badge>
               </div>
 
@@ -2124,6 +2212,55 @@ function IssueEditContent({
                 </CardContent>
               </Card>
 
+              {/* Priority Section */}
+              <Card>
+                <CardHeader className='pb-3'>
+                  <CardTitle className='flex items-center gap-2 text-sm'>
+                    <ChevronUp className='h-4 w-4' />
+                    Priority
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  <div className='flex items-center gap-2'>
+                    <Badge
+                      variant='outline'
+                      className={`${getPriorityColor(displayIssue.priority.name)} px-2 py-1 text-xs`}
+                    >
+                      <span className='inline-flex items-center gap-1'>
+                        <PriorityGlyph level={displayIssue.priority.name} />
+                        {displayIssue.priority.name}
+                      </span>
+                    </Badge>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label
+                      htmlFor='priority-select'
+                      className='text-muted-foreground text-xs'
+                    >
+                      Change Priority
+                    </Label>
+                    <Select
+                      value={selectedPriority || displayIssue.priority.name}
+                      onValueChange={setSelectedPriority}
+                    >
+                      <SelectTrigger className='h-8 text-sm'>
+                        <SelectValue placeholder='Select priority' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRIORITY_OPTIONS.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            <span className='inline-flex items-center gap-2'>
+                              <PriorityGlyph level={p.value} />
+                              {p.value}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Assignee Section */}
               <Card>
                 <CardHeader className='pb-3'>
@@ -2405,6 +2542,7 @@ function IssueCreateContent({
     Array<{ id: string; name: string; released?: boolean; archived?: boolean }>
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
+  const [priority, setPriority] = useState<string>('Medium')
 
   // Sprints
   const [sprints, setSprints] = useState<
@@ -2583,6 +2721,7 @@ function IssueCreateContent({
     setSelectedVersionIds([])
     setSelectedSprintId('')
     setSprintOpen(false)
+    setPriority('Medium')
     setSuggestions([])
     setSuggestOpen(false)
     setSuggestLoading(false)
@@ -2665,7 +2804,8 @@ function IssueCreateContent({
       linkIssueKey: linkIssueKey.trim() || undefined,
       linkType: linkIssueKey.trim() ? linkType : undefined,
       versionIds: selectedVersionIds,
-      sprintId: selectedSprintId || undefined
+      sprintId: selectedSprintId || undefined,
+      priority
     })
 
     if (!res?.key) {
@@ -3051,6 +3191,29 @@ function IssueCreateContent({
                   </Command>
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='priority'>Priority</Label>
+              <Select
+                value={priority}
+                onValueChange={setPriority}
+                disabled={loading}
+              >
+                <SelectTrigger id='priority' className='h-10'>
+                  <SelectValue placeholder='Select priority' />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      <span className='inline-flex items-center gap-2'>
+                        <PriorityGlyph level={p.value} />
+                        {p.value}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className='space-y-2'>
