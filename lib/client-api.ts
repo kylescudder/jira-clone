@@ -366,6 +366,42 @@ export async function uploadIssueAttachments(
   }
 }
 
+export async function deleteIssueAttachment(
+  issueKey: string,
+  attachmentId: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `/api/issues/${issueKey}/attachments/${attachmentId}`,
+      {
+        method: 'DELETE'
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Attachment delete failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`${CACHE_PREFIX}issueDetails:${issueKey}`)
+      }
+    } catch {
+      // ignore cache cleanup errors
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error deleting attachment:', error)
+    return false
+  }
+}
+
 export async function fetchIssues(
   projectKey: string,
   filters?: FilterOptions

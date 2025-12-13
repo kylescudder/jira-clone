@@ -55,6 +55,7 @@ import {
   RefreshCw,
   Save,
   Tag,
+  Trash2,
   User,
   X
 } from 'lucide-react'
@@ -78,7 +79,8 @@ import {
   updateIssueDescription,
   updateIssueFixVersions,
   updateIssueStatus,
-  uploadIssueAttachments
+  uploadIssueAttachments,
+  deleteIssueAttachment
 } from '@/lib/client-api'
 import { usePasteImage, insertAtCursor } from '@/lib/use-paste-image'
 import { useToast } from '@/lib/use-toast'
@@ -736,6 +738,9 @@ function IssueEditContent({
   const [attachmentsOpen, setAttachmentsOpen] = useState(true)
   const [freshIssue, setFreshIssue] = useState<JiraIssue | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [deletingAttachments, setDeletingAttachments] = useState<Set<string>>(
+    new Set()
+  )
   const [preview, setPreview] = useState<{
     url: string
     filename: string
@@ -922,6 +927,50 @@ function IssueEditContent({
       // do not set global error as edit controls are separate
     } finally {
       setDetailsLoading(false)
+    }
+  }
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!issue) return
+    setDeletingAttachments((prev) => new Set(prev).add(attachmentId))
+    try {
+      const ok = await deleteIssueAttachment(issue.key, attachmentId)
+      if (!ok) {
+        toast({
+          title: 'Failed to delete attachment',
+          description: 'Please try again.',
+          variant: 'destructive'
+        })
+        return
+      }
+
+      setDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              attachments: prev.attachments.filter(
+                (att) => att.id !== attachmentId
+              )
+            }
+          : prev
+      )
+
+      toast({ title: 'Attachment deleted' })
+      await loadDetails()
+      onUpdate()
+    } catch (error) {
+      console.error('Error deleting attachment', error)
+      toast({
+        title: 'Failed to delete attachment',
+        description: 'Please try again.',
+        variant: 'destructive'
+      })
+    } finally {
+      setDeletingAttachments((prev) => {
+        const next = new Set(prev)
+        next.delete(attachmentId)
+        return next
+      })
     }
   }
 
@@ -1593,6 +1642,7 @@ function IssueEditContent({
                                   att.mimeType.toLowerCase().includes('pdf')) ||
                                 /\.pdf$/i.test(att.filename)
                               const canPreview = att.isImage || isPdf
+                              const isDeleting = deletingAttachments.has(att.id)
                               return (
                                 <div
                                   key={att.id}
@@ -1634,12 +1684,30 @@ function IssueEditContent({
                                       {(att.size / 1024).toFixed(1)} KB
                                     </div>
                                   </div>
-                                  <a
-                                    href={`/api/issues/${issue.key}/attachments/${att.id}`}
-                                    className='text-[hsl(var(--primary))] text-sm whitespace-nowrap'
-                                  >
-                                    Download
-                                  </a>
+                                  <div className='flex items-center gap-2 self-start ml-auto'>
+                                    <a
+                                      href={`/api/issues/${issue.key}/attachments/${att.id}`}
+                                      className='text-[hsl(var(--primary))] text-sm whitespace-nowrap'
+                                    >
+                                      Download
+                                    </a>
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      className='h-8 w-8 text-muted-foreground hover:text-destructive'
+                                      onClick={() =>
+                                        handleDeleteAttachment(att.id)
+                                      }
+                                      disabled={isDeleting}
+                                      aria-label={`Delete ${att.filename}`}
+                                    >
+                                      {isDeleting ? (
+                                        <Loader2 className='h-4 w-4 animate-spin' />
+                                      ) : (
+                                        <Trash2 className='h-4 w-4' />
+                                      )}
+                                    </Button>
+                                  </div>
                                 </div>
                               )
                             })}

@@ -83,3 +83,38 @@ export async function GET(
     return new NextResponse('Internal Server Error', { status: 500 })
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  ctx: { params: Promise<{ issueKey: string; attachmentId: string }> }
+) {
+  try {
+    const { attachmentId } = await ctx.params
+    const { base, headers } = await getAuthAndBase()
+
+    const deleteRes = await fetch(
+      `${base}/rest/api/3/attachment/${attachmentId}`,
+      {
+        method: 'DELETE',
+        headers
+      }
+    )
+
+    if (!deleteRes.ok) {
+      const errorText = await deleteRes.text()
+      console.error('Failed to delete attachment', deleteRes.status, errorText)
+      return NextResponse.json(
+        { error: 'Failed to delete attachment' },
+        { status: deleteRes.status }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Attachment delete error:', error)
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    )
+  }
+}

@@ -2,24 +2,24 @@ import { NextResponse } from 'next/server'
 import { getProjectComponents } from '@/lib/jira-api'
 
 export async function GET(
-	_request: Request,
-	ctx: { params: Promise<{ projectKey: string }> }
+  _request: Request,
+  ctx: { params: Promise<{ projectKey: string }> }
 ) {
-	try {
-		const { projectKey } = await ctx.params
-		if (!projectKey) {
-			return NextResponse.json(
-				{ error: 'Project key is required' },
-				{ status: 400 }
-			)
-		}
-		const components = await getProjectComponents(projectKey)
-		return NextResponse.json(components)
-	} catch (error) {
-		console.error('API Error fetching components:', error)
-		return NextResponse.json(
-			{ error: 'Failed to fetch project components' },
-			{ status: 500 }
-		)
-	}
+  try {
+    const { projectKey } = await ctx.params
+    if (!projectKey) {
+      return NextResponse.json(
+        { error: 'Project key is required' },
+        { status: 400 }
+      )
+    }
+    const components = await getProjectComponents(projectKey)
+    return NextResponse.json(components)
+  } catch (error) {
+    console.error('API Error fetching components:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch project components' },
+      { status: 500 }
+    )
+  }
 }
