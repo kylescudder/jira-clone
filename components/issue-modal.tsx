@@ -1772,7 +1772,7 @@ function IssueEditContent({
                                       {(att.size / 1024).toFixed(1)} KB
                                     </div>
                                   </div>
-                                  <div className='flex items-center gap-2 self-start ml-auto'>
+                                  <div className='flex items-center gap-2 self-center ml-auto'>
                                     <a
                                       href={`/api/issues/${issue.key}/attachments/${att.id}`}
                                       className='text-[hsl(var(--primary))] text-sm whitespace-nowrap'
