@@ -27,7 +27,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang='en' suppressHydrationWarning>
-      <body className={`${inter.className} dark`} data-ui='v2'>
+      <body className={inter.className} data-ui='v2'>
         <DesignInit />
         <ToastProviderStore>
           <ThemeProvider

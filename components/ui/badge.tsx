@@ -4,17 +4,18 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border text-xs font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-full border text-xs font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background',
   {
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
+          'border-[hsl(var(--primary))/30] bg-[hsl(var(--primary))/14] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))/22]',
         secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          'border-[hsl(var(--secondary))/35] bg-[hsl(var(--secondary))/26] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--secondary))/36]',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'text-foreground'
+          'border-[hsl(var(--destructive))/40] bg-[hsl(var(--destructive))/16] text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))/26]',
+        outline:
+          'border-border text-foreground hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))]'
       },
       size: {
         default: 'px-2.5 py-0.5',

@@ -95,59 +95,59 @@
 
 @layer base {
   :root {
-    /* Catppuccin Mocha palette (applied globally, even in light mode) */
+    /* Catppuccin Latte palette (default/light) */
     /* Core surfaces */
-    --background: 240 22% 15%; /* base #1e1e2e */
-    --foreground: 227 64% 86%; /* text #cdd6f4 */
+    --background: 220 23% 95%; /* base #eff1f5 */
+    --foreground: 234 16% 35%; /* text #4c4f69 */
 
-    --card: 234 21% 23%; /* surface0 #313244 */
-    --card-foreground: 227 64% 86%;
+    --card: 220 22% 92%; /* mantle #e6e9ef */
+    --card-foreground: 234 16% 35%;
 
-    --popover: 234 21% 23%;
-    --popover-foreground: 227 64% 86%;
+    --popover: 220 22% 92%;
+    --popover-foreground: 234 16% 35%;
 
     /* Brand/primary accents (Mauve as primary) */
-    --primary: 267 84% 82%; /* mauve #cba6f7 */
-    --primary-foreground: 234 21% 23%; /* readable on mauve */
+    --primary: 266 85% 58%; /* mauve #8839ef */
+    --primary-foreground: 220 23% 95%; /* readable on mauve */
 
-    /* Secondary + muted use darker surfaces */
-    --secondary: 231 16% 31%; /* surface1 #45475a */
-    --secondary-foreground: 227 64% 86%;
+    /* Secondary + muted use softer surfaces */
+    --secondary: 223 16% 83%; /* surface0 #ccd0da */
+    --secondary-foreground: 234 16% 35%;
 
-    --muted: 231 16% 31%;
-    --muted-foreground: 227 17% 63%; /* overlay2 #9399b2 */
+    --muted: 225 14% 77%; /* surface1 #bcc0cc */
+    --muted-foreground: 231 10% 59%; /* overlay1 #8c8fa1 */
 
-    --accent: 231 16% 31%;
-    --accent-foreground: 227 64% 86%;
+    --accent: 223 16% 83%;
+    --accent-foreground: 234 16% 35%;
 
     /* States */
-    --destructive: 343 85% 76%; /* red #f38ba8 */
-    --destructive-foreground: 234 21% 23%;
+    --destructive: 347 87% 44%; /* red #d20f39 */
+    --destructive-foreground: 220 23% 95%;
 
     /* Controls */
-    --border: 231 12% 39%; /* surface2 #585b70 */
-    --input: 231 12% 39%;
-    --ring: 267 84% 82%; /* mauve */
+    --border: 227 12% 71%; /* surface2 #acb0be */
+    --input: 227 12% 71%;
+    --ring: 266 85% 58%; /* mauve */
 
     /* Radius keeps prior */
     --radius: 0.5rem;
 
     /* Optional: charts mapped to Catppuccin hues */
-    --chart-1: 217 92% 76%; /* blue #89b4fa */
-    --chart-2: 267 84% 82%; /* mauve #cba6f7 */
-    --chart-3: 196 77% 70%; /* sapphire #74c7ec */
-    --chart-4: 24 92% 76%; /* peach #fab387 */
-    --chart-5: 110 54% 76%; /* green #a6e3a1 */
+    --chart-1: 220 91% 54%; /* blue #1e66f5 */
+    --chart-2: 266 85% 58%; /* mauve #8839ef */
+    --chart-3: 189 70% 42%; /* sapphire #209fb5 */
+    --chart-4: 22 99% 52%; /* peach #fe640b */
+    --chart-5: 109 58% 40%; /* green #40a02b */
 
     /* Sidebar tokens (if used) */
-    --sidebar-background: 231 16% 31%; /* surface1 */
-    --sidebar-foreground: 227 64% 86%;
-    --sidebar-primary: 267 84% 82%; /* mauve */
-    --sidebar-primary-foreground: 234 21% 23%;
-    --sidebar-accent: 231 12% 39%; /* surface2 */
-    --sidebar-accent-foreground: 227 64% 86%;
-    --sidebar-border: 231 12% 39%;
-    --sidebar-ring: 267 84% 82%;
+    --sidebar-background: 220 22% 92%; /* mantle */
+    --sidebar-foreground: 234 16% 35%;
+    --sidebar-primary: 266 85% 58%; /* mauve */
+    --sidebar-primary-foreground: 220 23% 95%;
+    --sidebar-accent: 223 16% 83%; /* surface0 */
+    --sidebar-accent-foreground: 234 16% 35%;
+    --sidebar-border: 227 12% 71%;
+    --sidebar-ring: 266 85% 58%;
   }
 
   .dark {
@@ -182,6 +182,13 @@
     --ring: 267 84% 82%; /* mauve */
 
     --radius: 0.5rem; /* align with :root */
+
+    /* Charts stay Mocha for dark */
+    --chart-1: 217 92% 76%; /* blue #89b4fa */
+    --chart-2: 267 84% 82%; /* mauve #cba6f7 */
+    --chart-3: 196 77% 70%; /* sapphire #74c7ec */
+    --chart-4: 24 92% 76%; /* peach #fab387 */
+    --chart-5: 110 54% 76%; /* green #a6e3a1 */
   }
 }
 
