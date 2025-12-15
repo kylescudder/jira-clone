@@ -136,8 +136,15 @@ async function jiraAgileFetch(endpoint: string, options?: RequestInit) {
   }
 
   if (!response.ok) {
+    let errText = ''
+    try {
+      errText = await response.text()
+    } catch (_) {
+      // ignore
+    }
+    const suffix = errText ? ` - ${errText}` : ''
     throw new Error(
-      `Jira Agile API error: ${response.status} ${response.statusText}`
+      `Jira Agile API error: ${response.status} ${response.statusText}${suffix}`
     )
   }
 
@@ -295,6 +302,76 @@ function extractTextFromADF(adfContent: any): string {
     console.error('Error extracting text from ADF:', error)
     return 'Unable to parse description'
   }
+}
+
+// Normalize sprint information that may arrive as an array, object, or legacy string
+function extractSprintFromFields(
+  fields: any
+): { id: string; name?: string; state?: string } | undefined {
+  const normalize = (raw: any) => {
+    if (!raw) return undefined
+
+    if (typeof raw === 'number') {
+      const idStr = String(raw)
+      return { id: idStr, name: idStr, state: '' }
+    }
+
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim()
+      const idMatch = trimmed.match(/id=(\d+)/)
+      const nameMatch = trimmed.match(/name=([^,\]]+)/)
+      const stateMatch = trimmed.match(/state=([^,\]]+)/)
+      const id = idMatch?.[1]
+      const name = nameMatch?.[1]?.trim()
+      const state = stateMatch?.[1]?.trim()
+      const resolvedName =
+        (name || '').toString().trim() || (id ? String(id) : trimmed)
+      if (id || resolvedName) {
+        return {
+          id: String(id || resolvedName),
+          name: resolvedName || '',
+          state: state || ''
+        }
+      }
+      // Fallback: plain string without metadata
+      if (trimmed) {
+        return { id: trimmed, name: trimmed, state: '' }
+      }
+      return undefined
+    }
+
+    const id = raw.id ?? raw.sprintId ?? raw.value
+    const name = raw.name ?? raw.label ?? raw.value
+    const state = raw.state ?? raw.status
+    const resolvedName =
+      (name ?? '').toString().trim() || (id ? String(id) : '')
+    if (!id && !resolvedName) return undefined
+    return {
+      id: String(id || resolvedName),
+      name: resolvedName || '',
+      state: state || ''
+    }
+  }
+
+  const sources = [
+    fields?.customfield_10020,
+    fields?.sprint,
+    fields?.sprints,
+    fields?.closedSprints
+  ]
+  for (const source of sources) {
+    if (Array.isArray(source)) {
+      for (const entry of source) {
+        const normalized = normalize(entry)
+        if (normalized) return normalized
+      }
+    } else {
+      const normalized = normalize(source)
+      if (normalized) return normalized
+    }
+  }
+
+  return undefined
 }
 
 // Convert Jira ADF to minimal HTML preserving basic formatting
@@ -726,7 +803,7 @@ export async function getProjectSprints(
       const allIssues = await fetchAllPaginated(async (startAt, maxResults) => {
         const jql = `project = ${projectKey} AND sprint is not EMPTY`
         const data = await jiraFetch(
-          `/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=customfield_10020`
+          `/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${encodeURIComponent('customfield_10020,sprint,sprints,closedSprints')}`
         )
         return data || { values: [], total: 0 }
       }, 100)
@@ -739,21 +816,17 @@ export async function getProjectSprints(
         >()
 
         allIssues.forEach((issue: any) => {
-          const sprintField = issue.fields?.customfield_10020
-          if (sprintField && Array.isArray(sprintField)) {
-            sprintField.forEach((sprint: any) => {
-              if (sprint && sprint.id && sprint.name) {
-                const sprintKey = `${sprint.id}-${sprint.name}`
-                if (!sprintSet.has(sprintKey)) {
-                  sprintSet.add(sprintKey)
-                  sprintMap.set(sprintKey, {
-                    id: sprint.id.toString(),
-                    name: sprint.name,
-                    state: sprint.state || 'unknown'
-                  })
-                }
-              }
-            })
+          const sprint = extractSprintFromFields(issue.fields)
+          if (sprint && sprint.id && sprint.name) {
+            const sprintKey = `${sprint.id}-${sprint.name}`
+            if (!sprintSet.has(sprintKey)) {
+              sprintSet.add(sprintKey)
+              sprintMap.set(sprintKey, {
+                id: sprint.id.toString(),
+                name: sprint.name,
+                state: sprint.state || 'unknown'
+              })
+            }
           }
         })
 
@@ -1216,7 +1289,10 @@ export async function getIssues(
         'labels',
         'components',
         'fixVersions',
-        'customfield_10020'
+        'customfield_10020',
+        'sprint',
+        'sprints',
+        'closedSprints'
       ].join(',')
       const url = `/search/jql?jql=${encodeURIComponent(jql)}&fields=${encodeURIComponent(minimalFields)}${nextPageToken ? `&nextPageToken=${encodeURIComponent(nextPageToken)}` : ''}`
       console.log(
@@ -1239,48 +1315,60 @@ export async function getIssues(
 
       // Map raw API issues to JiraIssue objects
       const mappedBatch: JiraIssue[] = data.issues.map(
-        (issue: any, idx: number) => ({
-          id: issue.id,
-          key: issue.key,
-          summary: issue.fields.summary,
-          status: issue.fields.status,
-          description: extractTextFromADF(issue.fields.description),
-          descriptionHtml: adfToHtml(
-            issue.fields.description,
-            issue.fields.attachment,
-            issue.key
-          ),
-          priority: issue.fields.priority,
-          assignee: issue.fields.assignee,
-          reporter: issue.fields.reporter,
-          issuetype: issue.fields.issuetype,
-          created: issue.fields.created,
-          updated: issue.fields.updated,
-          duedate: issue.fields.duedate,
-          labels: issue.fields.labels || [],
-          components: issue.fields.components || [],
-          sprint: issue.fields.customfield_10020
-            ? {
-                id: issue.fields.customfield_10020[0]?.id,
-                name: issue.fields.customfield_10020[0]?.name,
-                state: issue.fields.customfield_10020[0]?.state
-              }
-            : undefined,
-          fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
-            id: String(v.id),
-            name: v.name,
-            released: Boolean(v.released),
-            archived: Boolean(v.archived)
-          })),
-          // isLast is only meaningful on the last issue of the last page
-          isLast:
-            isLastPage && idx === data.issues.length - 1 ? true : undefined,
-          // nextPageToken is only set on the last item of a non-final page
-          nextPageToken:
-            !isLastPage && idx === data.issues.length - 1
-              ? data.nextPageToken
-              : undefined
-        })
+        (issue: any, idx: number) => {
+          let sprint = extractSprintFromFields(issue.fields)
+          if (!sprint && filters?.sprint?.length) {
+            const fallback = filters.sprint.find(
+              (s) => s.toLowerCase() !== 'backlog' && s !== 'NO_SPRINT'
+            )
+            if (fallback) {
+              sprint = { id: fallback, name: fallback, state: '' }
+            }
+          }
+          if (!sprint && issue.fields?.customfield_10020) {
+            console.warn(
+              'Sprint missing after extraction for issue',
+              issue.key,
+              issue.fields.customfield_10020
+            )
+          }
+          return {
+            id: issue.id,
+            key: issue.key,
+            summary: issue.fields.summary,
+            status: issue.fields.status,
+            description: extractTextFromADF(issue.fields.description),
+            descriptionHtml: adfToHtml(
+              issue.fields.description,
+              issue.fields.attachment,
+              issue.key
+            ),
+            priority: issue.fields.priority,
+            assignee: issue.fields.assignee,
+            reporter: issue.fields.reporter,
+            issuetype: issue.fields.issuetype,
+            created: issue.fields.created,
+            updated: issue.fields.updated,
+            duedate: issue.fields.duedate,
+            labels: issue.fields.labels || [],
+            components: issue.fields.components || [],
+            sprint,
+            fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
+              id: String(v.id),
+              name: v.name,
+              released: Boolean(v.released),
+              archived: Boolean(v.archived)
+            })),
+            // isLast is only meaningful on the last issue of the last page
+            isLast:
+              isLastPage && idx === data.issues.length - 1 ? true : undefined,
+            // nextPageToken is only set on the last item of a non-final page
+            nextPageToken:
+              !isLastPage && idx === data.issues.length - 1
+                ? data.nextPageToken
+                : undefined
+          }
+        }
       )
 
       allIssues.push(...mappedBatch)
@@ -1399,6 +1487,32 @@ export async function updateIssueFixVersions(
   }
 }
 
+export async function updateIssueSprint(
+  issueKey: string,
+  sprintId: string | null | undefined
+): Promise<boolean> {
+  try {
+    const trimmedSprintId =
+      sprintId && String(sprintId).trim() ? String(sprintId).trim() : ''
+
+    if (trimmedSprintId) {
+      await jiraAgileFetch(`/sprint/${trimmedSprintId}/issue`, {
+        method: 'POST',
+        body: JSON.stringify({ issues: [issueKey] })
+      })
+    } else {
+      await jiraAgileFetch(`/backlog/issue`, {
+        method: 'POST',
+        body: JSON.stringify({ issues: [issueKey] })
+      })
+    }
+    return true
+  } catch (error) {
+    console.error('Error updating issue sprint:', error)
+    return false
+  }
+}
+
 export async function updateIssueDescription(
   issueKey: string,
   description: string
@@ -1445,13 +1559,7 @@ export async function getIssue(issueKey: string): Promise<JiraIssue | null> {
       duedate: issue.fields.duedate || undefined,
       labels: issue.fields.labels || [],
       components: issue.fields.components || [],
-      sprint: issue.fields.customfield_10020
-        ? {
-            id: issue.fields.customfield_10020[0]?.id,
-            name: issue.fields.customfield_10020[0]?.name,
-            state: issue.fields.customfield_10020[0]?.state
-          }
-        : undefined,
+      sprint: extractSprintFromFields(issue.fields),
       fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
         id: String(v.id),
         name: v.name,
@@ -1623,14 +1731,12 @@ export async function createIssue(params: {
 
       try {
         if (sprintId && String(sprintId).trim()) {
-          await jiraFetch(`/issue/${newKey}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              fields: {
-                customfield_10020: [{ id: String(sprintId).trim() }]
-              }
-            })
-          })
+          const sprintSet = await updateIssueSprint(newKey, sprintId)
+          if (!sprintSet) {
+            console.warn(
+              'Issue created but setting sprint failed via Agile API'
+            )
+          }
         }
       } catch (e) {
         console.warn('Issue created but setting sprint failed:', e)

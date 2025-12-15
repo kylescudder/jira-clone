@@ -438,6 +438,42 @@ export async function updateIssuePriority(
   }
 }
 
+export async function updateIssueSprint(
+  issueKey: string,
+  sprintId: string | null | undefined
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/sprint`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sprintId })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Sprint update failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`${CACHE_PREFIX}issue:${issueKey}`)
+        localStorage.removeItem(`${CACHE_PREFIX}issueDetails:${issueKey}`)
+      }
+    } catch {
+      // ignore cache cleanup errors
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error updating sprint:', error)
+    return false
+  }
+}
+
 export async function fetchIssues(
   projectKey: string,
   filters?: FilterOptions

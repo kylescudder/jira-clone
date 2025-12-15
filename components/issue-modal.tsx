@@ -82,6 +82,7 @@ import {
   updateIssueAssignee,
   updateIssueDescription,
   updateIssueFixVersions,
+  updateIssueSprint,
   updateIssueStatus,
   uploadIssueAttachments,
   deleteIssueAttachment,
@@ -771,6 +772,12 @@ function IssueEditContent({
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [selectedPriority, setSelectedPriority] = useState<string>('')
+  const [projectSprints, setProjectSprints] = useState<
+    Array<{ id: string; name: string; state: string }>
+  >([])
+  const [selectedSprintId, setSelectedSprintId] = useState<string>('')
+  const [sprintSelectOpen, setSprintSelectOpen] = useState(false)
+  const [sprintsLoading, setSprintsLoading] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(true)
   const [attachmentsOpen, setAttachmentsOpen] = useState(true)
@@ -904,15 +911,45 @@ function IssueEditContent({
       setSelectedTransition('')
       setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
       setSelectedPriority(issue.priority?.name || '')
+      setSelectedSprintId(issue.sprint?.id ? String(issue.sprint.id) : '')
       setHasChanges(false)
     }
   }, [issue, isOpen])
+
+  useEffect(() => {
+    if (!issue || !isOpen) return
+    let cancelled = false
+    const loadSprints = async () => {
+      setSprintsLoading(true)
+      try {
+        const cached = getCachedData<
+          Array<{ id: string; name: string; state: string }>
+        >(`sprints:${projectKey}`)
+        if (cached?.length && !cancelled) setProjectSprints(cached)
+        const sprints = await fetchProjectSprints(projectKey)
+        if (!cancelled) setProjectSprints(sprints)
+      } catch {
+        // ignore sprint load errors
+      } finally {
+        if (!cancelled) setSprintsLoading(false)
+      }
+    }
+    loadSprints()
+    return () => {
+      cancelled = true
+    }
+  }, [issue, isOpen, projectKey])
 
   // Clear messages when changes are made
   useEffect(() => {
     setError(null)
     setSuccess(null)
-  }, [selectedTransition, selectedAssignee, selectedVersionIds])
+  }, [
+    selectedTransition,
+    selectedAssignee,
+    selectedVersionIds,
+    selectedSprintId
+  ])
 
   // Clear comment messages when text changes
   useEffect(() => {
@@ -929,6 +966,7 @@ function IssueEditContent({
       setHasChanges(false)
       if (issue) {
         setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
+        setSelectedSprintId(issue.sprint?.id ? String(issue.sprint.id) : '')
       }
     }
   }, [isOpen, issue])
@@ -953,18 +991,22 @@ function IssueEditContent({
       selectedPriority &&
       selectedPriority.trim().toLowerCase() !==
         basePriority.trim().toLowerCase()
+    const baseSprintId = baseIssue.sprint?.id ? String(baseIssue.sprint.id) : ''
+    const hasSprintChange = (selectedSprintId || '') !== (baseSprintId || '')
 
     setHasChanges(
       hasStatusChange ||
         hasAssigneeChange ||
         hasVersionChange ||
-        hasPriorityChange
+        hasPriorityChange ||
+        hasSprintChange
     )
   }, [
     selectedTransition,
     selectedAssignee,
     selectedVersionIds,
     selectedPriority,
+    selectedSprintId,
     issue,
     freshIssue
   ])
@@ -1102,10 +1144,17 @@ function IssueEditContent({
     try {
       const updated = await fetchIssue(issue.key)
       if (updated) {
-        setFreshIssue(updated)
+        const effectiveSprint = updated.sprint || issue.sprint
+        const merged = effectiveSprint
+          ? { ...updated, sprint: effectiveSprint }
+          : updated
+        setFreshIssue(merged)
         setSelectedAssignee(updated.assignee?.displayName || 'unassigned')
         setSelectedVersionIds((updated.fixVersions || []).map((v) => v.id))
         setSelectedPriority(updated.priority?.name || '')
+        setSelectedSprintId(
+          effectiveSprint?.id ? String(effectiveSprint.id) : ''
+        )
       }
     } catch (e) {
       // ignore
@@ -1189,6 +1238,41 @@ function IssueEditContent({
         }
       }
 
+      // Update sprint if changed
+      const originalSprintId = issue.sprint?.id ? String(issue.sprint.id) : ''
+      if ((selectedSprintId || '') !== (originalSprintId || '')) {
+        const ok = await updateIssueSprint(issue.key, selectedSprintId || null)
+        if (ok) {
+          hasUpdates = true
+          const sprintName =
+            projectSprints.find((s) => s.id === selectedSprintId)?.name ||
+            (selectedSprintId ? 'Selected sprint' : 'No sprint')
+          updates.push(
+            selectedSprintId
+              ? `Sprint updated to ${sprintName}`
+              : 'Sprint cleared'
+          )
+          setFreshIssue((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  sprint: selectedSprintId
+                    ? {
+                        id: selectedSprintId,
+                        name: sprintName,
+                        state:
+                          projectSprints.find((s) => s.id === selectedSprintId)
+                            ?.state || ''
+                      }
+                    : undefined
+                }
+              : prev
+          )
+        } else {
+          throw new Error('Failed to update sprint')
+        }
+      }
+
       // Update fix versions if changed
       {
         const originalVersionIds = (issue.fixVersions || [])
@@ -1246,6 +1330,7 @@ function IssueEditContent({
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
       setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
       setSelectedPriority(issue.priority?.name || '')
+      setSelectedSprintId(issue.sprint?.id ? String(issue.sprint.id) : '')
     }
     onClose()
   }
@@ -2258,6 +2343,137 @@ function IssueEditContent({
                       </SelectContent>
                     </Select>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Sprint Section */}
+              <Card>
+                <CardHeader className='pb-3'>
+                  <CardTitle className='flex items-center gap-2 text-sm'>
+                    <Calendar className='h-4 w-4' />
+                    Sprint
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  <div className='flex items-center gap-2'>
+                    <Badge variant='outline' className='px-2 py-1 text-xs'>
+                      {decodeHtmlEntities(
+                        displayIssue.sprint?.name || 'No sprint'
+                      )}
+                    </Badge>
+                    {displayIssue.sprint?.state ? (
+                      <Badge
+                        variant='secondary'
+                        className='px-2 py-0.5 text-[11px] capitalize'
+                      >
+                        {displayIssue.sprint.state.toLowerCase()}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  {projectSprints.length === 0 && sprintsLoading ? (
+                    <div className='text-muted-foreground flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Loading sprints...
+                    </div>
+                  ) : (
+                    <div className='space-y-2'>
+                      <Label
+                        htmlFor='sprint-select'
+                        className='text-muted-foreground text-xs'
+                      >
+                        Change Sprint
+                      </Label>
+                      <Popover
+                        open={sprintSelectOpen}
+                        onOpenChange={setSprintSelectOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            type='button'
+                            id='sprint-select'
+                            className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                            disabled={
+                              sprintsLoading && projectSprints.length === 0
+                            }
+                            aria-haspopup='listbox'
+                            aria-expanded={sprintSelectOpen}
+                          >
+                            <span className='truncate'>
+                              {selectedSprintId
+                                ? decodeHtmlEntities(
+                                    projectSprints.find(
+                                      (s) => s.id === selectedSprintId
+                                    )?.name || 'Select a sprint'
+                                  )
+                                : 'Select a sprint'}
+                            </span>
+                            <ChevronsUpDown className='h-4 w-4 opacity-60' />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
+                          <Command>
+                            <CommandInput placeholder='Search sprints...' />
+                            <CommandList>
+                              <CommandEmpty>No sprints found.</CommandEmpty>
+                              <CommandGroup heading='Sprints'>
+                                <CommandItem
+                                  key='__no_sprint__'
+                                  onSelect={() => {
+                                    setSelectedSprintId('')
+                                    setSprintSelectOpen(false)
+                                  }}
+                                >
+                                  <span className='truncate'>No sprint</span>
+                                  {selectedSprintId === '' && (
+                                    <Check className='ml-auto h-4 w-4 opacity-70' />
+                                  )}
+                                </CommandItem>
+                                {projectSprints
+                                  .filter(
+                                    (s) =>
+                                      (s.state || '').toLowerCase() !==
+                                        'closed' || s.id === selectedSprintId
+                                  )
+                                  .slice()
+                                  .sort((a, b) => {
+                                    const order = {
+                                      active: 0,
+                                      future: 1,
+                                      closed: 2
+                                    } as any
+                                    const sa = (a.state || '').toLowerCase()
+                                    const sb = (b.state || '').toLowerCase()
+                                    if (order[sa] !== order[sb])
+                                      return order[sa] - order[sb]
+                                    return a.name.localeCompare(b.name)
+                                  })
+                                  .map((s) => (
+                                    <CommandItem
+                                      key={s.id}
+                                      value={`${s.name} ${s.state}`}
+                                      onSelect={() => {
+                                        setSelectedSprintId(s.id)
+                                        setSprintSelectOpen(false)
+                                      }}
+                                    >
+                                      <span className='truncate'>
+                                        {decodeHtmlEntities(s.name)}
+                                      </span>
+                                      <span className='ml-2 text-[11px] capitalize text-muted-foreground'>
+                                        {s.state.toLowerCase()}
+                                      </span>
+                                      {selectedSprintId === s.id && (
+                                        <Check className='ml-auto h-4 w-4 opacity-70' />
+                                      )}
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

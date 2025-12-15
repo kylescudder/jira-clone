@@ -39,7 +39,7 @@ export interface JiraIssue {
     name: string
   }>
   sprint?: {
-    id: number
+    id: string
     name: string
     state: string
   }
