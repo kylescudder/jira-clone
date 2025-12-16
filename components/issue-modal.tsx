@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LinkIssuePicker } from '@/components/link-issue-picker'
 import { VersionsMultiSelect } from '@/components/versions-multi-select'
 import { Button } from '@/components/ui/button'
@@ -86,7 +86,8 @@ import {
   updateIssueStatus,
   uploadIssueAttachments,
   deleteIssueAttachment,
-  updateIssuePriority
+  updateIssuePriority,
+  updateIssueComponents
 } from '@/lib/client-api'
 import { usePasteImage, insertAtCursor } from '@/lib/use-paste-image'
 import { useToast } from '@/lib/use-toast'
@@ -772,6 +773,11 @@ function IssueEditContent({
   >([])
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([])
   const [selectedPriority, setSelectedPriority] = useState<string>('')
+  const [projectComponents, setProjectComponents] = useState<
+    Array<{ id: string; name: string }>
+  >([])
+  const [selectedComponentId, setSelectedComponentId] = useState<string>('')
+  const [componentSelectOpen, setComponentSelectOpen] = useState(false)
   const [projectSprints, setProjectSprints] = useState<
     Array<{ id: string; name: string; state: string }>
   >([])
@@ -911,10 +917,35 @@ function IssueEditContent({
       setSelectedTransition('')
       setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
       setSelectedPriority(issue.priority?.name || '')
+      setSelectedComponentId(getPrimaryComponentKey(issue))
       setSelectedSprintId(issue.sprint?.id ? String(issue.sprint.id) : '')
       setHasChanges(false)
     }
   }, [issue, isOpen])
+
+  useEffect(() => {
+    if (!issue || !isOpen) return
+    let cancelled = false
+
+    const loadComponents = async () => {
+      try {
+        const cached =
+          getCachedData<Array<{ id: string; name: string }>>(
+            `components:${projectKey}`
+          ) || []
+        if (cached.length && !cancelled) setProjectComponents(cached)
+        const comps = await fetchProjectComponents(projectKey)
+        if (!cancelled) setProjectComponents(comps)
+      } catch {
+        // ignore component load errors
+      }
+    }
+
+    loadComponents()
+    return () => {
+      cancelled = true
+    }
+  }, [issue, isOpen, projectKey])
 
   useEffect(() => {
     if (!issue || !isOpen) return
@@ -948,7 +979,9 @@ function IssueEditContent({
     selectedTransition,
     selectedAssignee,
     selectedVersionIds,
-    selectedSprintId
+    selectedSprintId,
+    selectedPriority,
+    selectedComponentId
   ])
 
   // Clear comment messages when text changes
@@ -993,13 +1026,17 @@ function IssueEditContent({
         basePriority.trim().toLowerCase()
     const baseSprintId = baseIssue.sprint?.id ? String(baseIssue.sprint.id) : ''
     const hasSprintChange = (selectedSprintId || '') !== (baseSprintId || '')
+    const baseComponentId = getPrimaryComponentKey(baseIssue)
+    const hasComponentChange =
+      (selectedComponentId || '') !== (baseComponentId || '')
 
     setHasChanges(
       hasStatusChange ||
         hasAssigneeChange ||
         hasVersionChange ||
         hasPriorityChange ||
-        hasSprintChange
+        hasSprintChange ||
+        hasComponentChange
     )
   }, [
     selectedTransition,
@@ -1008,7 +1045,8 @@ function IssueEditContent({
     selectedPriority,
     selectedSprintId,
     issue,
-    freshIssue
+    freshIssue,
+    selectedComponentId
   ])
 
   const loadDetails = async () => {
@@ -1152,6 +1190,7 @@ function IssueEditContent({
         setSelectedAssignee(updated.assignee?.displayName || 'unassigned')
         setSelectedVersionIds((updated.fixVersions || []).map((v) => v.id))
         setSelectedPriority(updated.priority?.name || '')
+        setSelectedComponentId(getPrimaryComponentKey(merged))
         setSelectedSprintId(
           effectiveSprint?.id ? String(effectiveSprint.id) : ''
         )
@@ -1160,6 +1199,17 @@ function IssueEditContent({
       // ignore
     }
   }
+
+  const componentOptions = useMemo(
+    () =>
+      projectComponents.length > 0
+        ? projectComponents
+        : (freshIssue || issue)?.components?.map((c) => ({
+            id: c.id || c.name,
+            name: c.name
+          })) || [],
+    [projectComponents, freshIssue, issue]
+  )
 
   const handleSave = async () => {
     if (!issue || !hasChanges) return
@@ -1170,6 +1220,7 @@ function IssueEditContent({
 
     let hasUpdates = false
     const updates: string[] = []
+    const baseIssue = freshIssue || issue
 
     try {
       // Update status if changed
@@ -1273,6 +1324,53 @@ function IssueEditContent({
         }
       }
 
+      // Update component if changed
+      {
+        const baseComponentId = getPrimaryComponentKey(baseIssue)
+        const changed = (selectedComponentId || '') !== (baseComponentId || '')
+        if (changed) {
+          const ok = await updateIssueComponents(
+            issue.key,
+            selectedComponentId || null
+          )
+          if (ok) {
+            hasUpdates = true
+            const name =
+              selectedComponentId && componentOptions.length > 0
+                ? componentOptions.find((c) => c.id === selectedComponentId)
+                    ?.name || selectedComponentId
+                : 'No component'
+            updates.push(
+              selectedComponentId
+                ? `Component updated to ${name}`
+                : 'Component cleared'
+            )
+            setFreshIssue((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    components: selectedComponentId
+                      ? [
+                          {
+                            id: selectedComponentId,
+                            name:
+                              componentOptions.find(
+                                (c) => c.id === selectedComponentId
+                              )?.name ||
+                              prev.components?.[0]?.name ||
+                              selectedComponentId
+                          }
+                        ]
+                      : []
+                  }
+                : prev
+            )
+          } else {
+            throw new Error('Failed to update component')
+          }
+        }
+      }
+
       // Update fix versions if changed
       {
         const originalVersionIds = (issue.fixVersions || [])
@@ -1326,10 +1424,12 @@ function IssueEditContent({
     setError(null)
     setSuccess(null)
     setHasChanges(false)
+    setComponentSelectOpen(false)
     if (issue) {
       setSelectedAssignee(issue.assignee?.displayName || 'unassigned')
       setSelectedVersionIds((issue.fixVersions || []).map((v) => v.id))
       setSelectedPriority(issue.priority?.name || '')
+      setSelectedComponentId(getPrimaryComponentKey(issue))
       setSelectedSprintId(issue.sprint?.id ? String(issue.sprint.id) : '')
     }
     onClose()
@@ -1350,6 +1450,12 @@ function IssueEditContent({
       default:
         return 'bg-muted/30 text-muted-foreground border-border'
     }
+  }
+
+  const getPrimaryComponentKey = (issueLike: JiraIssue | null) => {
+    const comp = issueLike?.components?.[0]
+    if (!comp) return ''
+    return (comp.id ? String(comp.id) : comp.name) || ''
   }
 
   if (!issue) return null
@@ -2342,6 +2448,110 @@ function IssueEditContent({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Component Section */}
+              <Card>
+                <CardHeader className='pb-3'>
+                  <CardTitle className='flex items-center gap-2 text-sm'>
+                    <Component className='h-4 w-4' />
+                    Component
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    {displayIssue.components.length > 0 ? (
+                      displayIssue.components.map((component) => (
+                        <Badge
+                          key={component.id || component.name}
+                          variant='outline'
+                          className='px-2 py-1 text-xs'
+                        >
+                          {component.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge variant='outline' className='px-2 py-1 text-xs'>
+                        No component
+                      </Badge>
+                    )}
+                  </div>
+                  <div className='space-y-2'>
+                    <Label
+                      htmlFor='component-select'
+                      className='text-muted-foreground text-xs'
+                    >
+                      Change Component
+                    </Label>
+                    <Popover
+                      open={componentSelectOpen}
+                      onOpenChange={setComponentSelectOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          type='button'
+                          id='component-select'
+                          className='border-input bg-background text-foreground w-full justify-between inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-ring focus:outline-hidden'
+                          aria-haspopup='listbox'
+                          aria-expanded={componentSelectOpen}
+                        >
+                          <span className='truncate'>
+                            {selectedComponentId
+                              ? componentOptions.find(
+                                  (c) => c.id === selectedComponentId
+                                )?.name ||
+                                displayIssue.components[0]?.name ||
+                                'Select a component'
+                              : 'Select a component'}
+                          </span>
+                          <ChevronsUpDown className='h-4 w-4 opacity-60' />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className='p-0 w-[--radix-popover-trigger-width] min-w-[260px]'>
+                        <Command>
+                          <CommandInput placeholder='Search components...' />
+                          <CommandList>
+                            <CommandEmpty>No components found.</CommandEmpty>
+                            <CommandGroup heading='Components'>
+                              <CommandItem
+                                key='__no_component__'
+                                onSelect={() => {
+                                  setSelectedComponentId('')
+                                  setComponentSelectOpen(false)
+                                }}
+                              >
+                                <span className='truncate'>No component</span>
+                                {selectedComponentId === '' && (
+                                  <Check className='ml-auto h-4 w-4 opacity-70' />
+                                )}
+                              </CommandItem>
+                              {componentOptions.map((component) => {
+                                const value = component.id || component.name
+                                return (
+                                  <CommandItem
+                                    key={value}
+                                    value={component.name}
+                                    onSelect={() => {
+                                      setSelectedComponentId(value)
+                                      setComponentSelectOpen(false)
+                                    }}
+                                  >
+                                    <span className='truncate'>
+                                      {component.name}
+                                    </span>
+                                    {selectedComponentId === value && (
+                                      <Check className='ml-auto h-4 w-4 opacity-70' />
+                                    )}
+                                  </CommandItem>
+                                )
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </CardContent>
               </Card>

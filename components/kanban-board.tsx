@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { IssueCard } from '@/components/issue-card'
 import { FilterSidebar } from '@/components/filter-sidebar'
@@ -9,11 +9,14 @@ import { normalizeStatusName } from '@/lib/utils'
 import {
   getCachedData,
   preloadIssues,
-  preloadIssueData
+  preloadIssueData,
+  searchIssuesGlobally,
+  fetchProjectComponents
 } from '@/lib/client-api'
 import { JiraIssue } from '@/types/JiraIssue'
 import { FilterOptions } from '@/types/FilterOptions'
 import { BoardColumn } from '@/types/BoardColumn'
+import { Loader2 } from 'lucide-react'
 
 interface KanbanBoardProps {
   issues: JiraIssue[]
@@ -38,9 +41,76 @@ export function KanbanBoard({
   searchQuery,
   projectKey
 }: KanbanBoardProps) {
-  // Remove the internal filter state
-  // const [filters, setFilters] = useState<FilterOptions>({})
-  // const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false)
+  const [globalSearchResults, setGlobalSearchResults] = useState<JiraIssue[]>(
+    []
+  )
+  const [globalSearchStatus, setGlobalSearchStatus] = useState<
+    'idle' | 'loading' | 'error' | 'done'
+  >('idle')
+  const [globalSearchError, setGlobalSearchError] = useState<string | null>(
+    null
+  )
+  const [projectComponents, setProjectComponents] = useState<
+    Array<{ id: string; name: string }>
+  >([])
+  const normalizedSearch = (searchQuery || '').trim()
+  const issueMatchesSearch = useCallback((issue: JiraIssue, q: string) => {
+    if (!q) return false
+    const norm = (s: string) => s.toLowerCase()
+    const stripHtml = (s: string) => s.replace(/<[^>]*>/g, ' ')
+    const normKey = (k: string) => k.replace(/-/g, '').toLowerCase()
+    const normQ = q.replace(/-/g, '')
+
+    if (norm(issue.key).includes(q) || normKey(issue.key).includes(normQ))
+      return true
+
+    if (issue.summary && norm(issue.summary).includes(q)) return true
+    if (issue.description && norm(issue.description).includes(q)) return true
+    if (
+      issue.descriptionHtml &&
+      norm(stripHtml(issue.descriptionHtml)).includes(q)
+    )
+      return true
+
+    const details = getCachedData<any>(`issueDetails:${issue.key}`)
+    if (details?.comments?.length) {
+      for (const c of details.comments) {
+        const body = c.body || ''
+        const bodyHtml = c.bodyHtml ? stripHtml(c.bodyHtml) : ''
+        if (norm(body).includes(q) || norm(bodyHtml).includes(q)) return true
+      }
+    }
+
+    return false
+  }, [])
+
+  useEffect(() => {
+    if (!projectKey) {
+      setProjectComponents([])
+      return
+    }
+
+    let cancelled = false
+    const cached =
+      getCachedData<Array<{ id: string; name: string }>>(
+        `components:${projectKey}`
+      ) || []
+    if (cached.length) setProjectComponents(cached)
+
+    const load = async () => {
+      try {
+        const comps = await fetchProjectComponents(projectKey)
+        if (!cancelled) setProjectComponents(comps)
+      } catch (e) {
+        // ignore component load errors; leave existing options in place
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [projectKey])
 
   const filteredIssues = useMemo(() => {
     let filtered = [...issues]
@@ -147,44 +217,19 @@ export function KanbanBoard({
     }
 
     // Apply text search (issue key, summary, description, comments)
-    const q = (searchQuery || '').trim().toLowerCase()
+    const q = normalizedSearch.toLowerCase()
     if (q) {
-      const norm = (s: string) => s.toLowerCase()
-      const stripHtml = (s: string) => s.replace(/<[^>]*>/g, ' ')
-      const normKey = (k: string) => k.replace(/-/g, '').toLowerCase()
-      const normQ = q.replace(/-/g, '')
-
-      filtered = filtered.filter((issue) => {
-        // Key match (case-insensitive, hyphen-insensitive)
-        if (norm(issue.key).includes(q) || normKey(issue.key).includes(normQ))
-          return true
-
-        // Summary/description
-        if (issue.summary && norm(issue.summary).includes(q)) return true
-        if (issue.description && norm(issue.description).includes(q))
-          return true
-        if (
-          issue.descriptionHtml &&
-          norm(stripHtml(issue.descriptionHtml)).includes(q)
-        )
-          return true
-
-        // Comments from cached details (best-effort)
-        const details = getCachedData<any>(`issueDetails:${issue.key}`)
-        if (details?.comments?.length) {
-          for (const c of details.comments) {
-            const body = c.body || ''
-            const bodyHtml = c.bodyHtml ? stripHtml(c.bodyHtml) : ''
-            if (norm(body).includes(q) || norm(bodyHtml).includes(q))
-              return true
-          }
-        }
-        return false
-      })
+      filtered = filtered.filter((issue) => issueMatchesSearch(issue, q))
     }
 
     return filtered
-  }, [issues, filters, searchQuery])
+  }, [issues, filters, normalizedSearch, issueMatchesSearch])
+
+  const cachedSearchMatches = useMemo(() => {
+    const q = normalizedSearch.toLowerCase()
+    if (!q) return []
+    return issues.filter((issue) => issueMatchesSearch(issue, q))
+  }, [issues, normalizedSearch, issueMatchesSearch])
 
   const columns: BoardColumn[] = useMemo(() => {
     const statusGroups = {
@@ -224,6 +269,45 @@ export function KanbanBoard({
     // Hide columns that have no issues to declutter the view
     return allColumns.filter((column) => column.issues.length > 0)
   }, [filteredIssues])
+
+  useEffect(() => {
+    if (!projectKey || !normalizedSearch || filteredIssues.length > 0) {
+      setGlobalSearchResults([])
+      setGlobalSearchStatus('idle')
+      setGlobalSearchError(null)
+      return
+    }
+
+    if (cachedSearchMatches.length > 0) {
+      setGlobalSearchResults(cachedSearchMatches)
+      setGlobalSearchStatus('done')
+      setGlobalSearchError(null)
+      return
+    }
+
+    let cancelled = false
+    const run = async () => {
+      setGlobalSearchStatus('loading')
+      setGlobalSearchError(null)
+      try {
+        const results = await searchIssuesGlobally(projectKey, normalizedSearch)
+        if (cancelled) return
+        setGlobalSearchResults(results)
+        setGlobalSearchStatus('done')
+      } catch (err) {
+        if (cancelled) return
+        console.error('Global search failed', err)
+        setGlobalSearchStatus('error')
+        setGlobalSearchError('Failed to search Jira. Please try again.')
+      }
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectKey, normalizedSearch, filteredIssues.length, cachedSearchMatches])
 
   // Detect current UI version (V1/V2) from body[data-ui] and react to changes
   const [uiVersion, setUiVersion] = useState<'v1' | 'v2'>('v2')
@@ -312,12 +396,11 @@ export function KanbanBoard({
 
   // Best-effort: when searching, preload issue details for comment search
   useEffect(() => {
-    const q = (searchQuery || '').trim()
-    if (!q || !projectKey || !issues.length) return
+    if (!normalizedSearch || !projectKey || !issues.length) return
     // Preload details in background for current issues (cap to 200 for safety)
     const cap = Math.min(issues.length, 200)
     preloadIssues(issues, projectKey, cap)
-  }, [searchQuery, projectKey, issues])
+  }, [normalizedSearch, projectKey, issues])
 
   // Prefetch on hover: avoid duplicate work within a session using a ref set
   const prefetchedRef = useRef<Set<string>>(new Set())
@@ -332,100 +415,177 @@ export function KanbanBoard({
     }, 150)
   }
 
+  const showGlobalSearch =
+    Boolean(normalizedSearch) && filteredIssues.length === 0
+  const hasCachedSearchMatches = cachedSearchMatches.length > 0
+
   return (
     <div className='bg-background flex h-full'>
       <FilterSidebar
         filters={filters}
         onFiltersChange={onFiltersChange}
         issues={issues}
+        projectComponents={projectComponents}
         isOpen={isFilterSidebarOpen}
         onToggle={onToggleFilterSidebar}
       />
 
       <div className='flex-1 overflow-hidden p-2 sm:p-4'>
-        {/* Horizontal scrolling container */}
-        <div className='h-full overflow-x-auto overflow-y-auto'>
-          <div className='flex h-full gap-4 flex-row'>
-            {columns.map((column) => (
-              <Card
-                key={column.id}
-                className={`flex sm:h-full w-full md:w-[320px] lg:w-[360px] xl:w-[380px] 2xl:w-[420px] min-w-full md:min-w-[320px] lg:min-w-[360px] xl:min-w-[380px] 2xl:min-w-[420px] shrink-0 flex-col ${uiVersion === 'v2' ? 'bg-card' : getColumnTintClass(column.title)}`}
-              >
-                {uiVersion === 'v2' ? (
-                  <div className='flex-1 min-h-0 overflow-y-auto'>
-                    {/* Sticky header with accent top strip */}
-                    <div className='sticky top-0 z-10 bg-card'>
-                      <div
-                        className={`h-1 w-full ${getColumnAccentBarClass(column.title)}`}
-                      ></div>
-                      <div className='px-3 py-3 border-b border-border'>
-                        <div className='flex items-center justify-between'>
-                          <span className='truncate text-base font-medium'>
-                            {column.title}
-                          </span>
-                          <Badge
-                            variant='secondary'
-                            size='compact'
-                            className='ml-2 shrink-0'
-                          >
-                            {column.issues.length}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className='p-3'>
-                      <div className='space-y-3'>
-                        {column.issues.map((issue) => (
-                          <IssueCard
-                            key={issue.id}
-                            issue={issue}
-                            onClick={onIssueClick}
-                            onHover={(iss) => {
-                              handleHoverPrefetch(iss)
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </div>
+        {showGlobalSearch ? (
+          <div className='mx-auto flex h-full max-w-5xl flex-col gap-3'>
+            <Card className='border-dashed border-border/70'>
+              <CardContent className='p-4'>
+                <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                  <div className='space-y-1'>
+                    <p className='text-sm font-semibold text-foreground'>
+                      {hasCachedSearchMatches
+                        ? `Showing cached matches for “${normalizedSearch}”`
+                        : `No cached matches for “${normalizedSearch}”`}
+                    </p>
+                    <p className='text-sm text-muted-foreground'>
+                      {hasCachedSearchMatches
+                        ? 'These were already loaded and may sit outside your current filters.'
+                        : 'Running a global Jira search across this project.'}
+                    </p>
                   </div>
-                ) : (
-                  <>
-                    <div className='shrink-0 pb-3'>
-                      <div className='px-4 pt-4'>
-                        <div className='flex items-center justify-between'>
-                          <span className='truncate text-lg'>
-                            {column.title}
-                          </span>
-                          <Badge
-                            variant='secondary'
-                            size='compact'
-                            className='ml-2 shrink-0'
-                          >
-                            {column.issues.length}
-                          </Badge>
+                  <Badge variant='secondary' size='compact'>
+                    {hasCachedSearchMatches
+                      ? 'Cached results'
+                      : 'Global search'}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {globalSearchStatus === 'loading' && (
+              <Card>
+                <CardContent className='flex items-center gap-2 p-4 text-sm text-muted-foreground'>
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                  Searching Jira…
+                </CardContent>
+              </Card>
+            )}
+
+            {globalSearchStatus === 'error' && (
+              <Card>
+                <CardContent className='p-4 text-sm text-destructive'>
+                  {globalSearchError ||
+                    'Unable to complete Jira search. Please try again.'}
+                </CardContent>
+              </Card>
+            )}
+
+            {globalSearchStatus === 'done' &&
+              globalSearchResults.length === 0 && (
+                <Card>
+                  <CardContent className='p-4 text-sm text-muted-foreground'>
+                    No Jira issues found for “{normalizedSearch}”.
+                  </CardContent>
+                </Card>
+              )}
+
+            {globalSearchResults.length > 0 && (
+              <div className='space-y-3'>
+                {globalSearchResults.map((issue) => (
+                  <IssueCard
+                    key={issue.id}
+                    issue={issue}
+                    onClick={onIssueClick}
+                    onHover={(iss) => {
+                      handleHoverPrefetch(iss)
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Horizontal scrolling container */}
+            <div className='h-full overflow-x-auto overflow-y-auto'>
+              <div className='flex h-full gap-4 flex-row'>
+                {columns.map((column) => (
+                  <Card
+                    key={column.id}
+                    className={`flex sm:h-full w-full md:w-[320px] lg:w-[360px] xl:w-[380px] 2xl:w-[420px] min-w-full md:min-w-[320px] lg:min-w-[360px] xl:min-w-[380px] 2xl:min-w-[420px] shrink-0 flex-col ${uiVersion === 'v2' ? 'bg-card' : getColumnTintClass(column.title)}`}
+                  >
+                    {uiVersion === 'v2' ? (
+                      <div className='flex-1 min-h-0 overflow-y-auto'>
+                        {/* Sticky header with accent top strip */}
+                        <div className='sticky top-0 z-10 bg-card'>
+                          <div
+                            className={`h-1 w-full ${getColumnAccentBarClass(column.title)}`}
+                          ></div>
+                          <div className='px-3 py-3 border-b border-border'>
+                            <div className='flex items-center justify-between'>
+                              <span className='truncate text-base font-medium'>
+                                {column.title}
+                              </span>
+                              <Badge
+                                variant='secondary'
+                                size='compact'
+                                className='ml-2 shrink-0'
+                              >
+                                {column.issues.length}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className='p-3'>
+                          <div className='space-y-3'>
+                            {column.issues.map((issue) => (
+                              <IssueCard
+                                key={issue.id}
+                                issue={issue}
+                                onClick={onIssueClick}
+                                onHover={(iss) => {
+                                  handleHoverPrefetch(iss)
+                                }}
+                              />
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className='flex-1 overflow-y-auto p-3'>
-                      <div className='space-y-3'>
-                        {column.issues.map((issue) => (
-                          <IssueCard
-                            key={issue.id}
-                            issue={issue}
-                            onClick={onIssueClick}
-                            onHover={(iss) => {
-                              handleHoverPrefetch(iss)
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </Card>
-            ))}
-          </div>
-        </div>
+                    ) : (
+                      <>
+                        <div className='shrink-0 pb-3'>
+                          <div className='px-4 pt-4'>
+                            <div className='flex items-center justify-between'>
+                              <span className='truncate text-lg'>
+                                {column.title}
+                              </span>
+                              <Badge
+                                variant='secondary'
+                                size='compact'
+                                className='ml-2 shrink-0'
+                              >
+                                {column.issues.length}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className='flex-1 overflow-y-auto p-3'>
+                          <div className='space-y-3'>
+                            {column.issues.map((issue) => (
+                              <IssueCard
+                                key={issue.id}
+                                issue={issue}
+                                onClick={onIssueClick}
+                                onHover={(iss) => {
+                                  handleHoverPrefetch(iss)
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

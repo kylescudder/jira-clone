@@ -374,6 +374,50 @@ function extractSprintFromFields(
   return undefined
 }
 
+// Normalize components from either the standard field or the custom component field
+function extractComponentsFromFields(
+  fields: any
+): Array<{ id?: string; name: string }> {
+  const normalize = (raw: any) => {
+    if (!raw) return null
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim()
+      return trimmed ? { name: trimmed } : null
+    }
+    const id =
+      raw.id ??
+      raw.value ??
+      raw.key ??
+      (typeof raw.name === 'number' ? raw.name : undefined)
+    const name = raw.name ?? raw.value ?? raw.label ?? raw.id ?? ''
+    const trimmedName = String(name || '').trim()
+    if (!trimmedName) return null
+    const normalized: { id?: string; name: string } = { name: trimmedName }
+    if (id) normalized.id = String(id)
+    return normalized
+  }
+
+  const rawComponents =
+    (Array.isArray(fields?.components) && fields.components.length
+      ? fields.components
+      : undefined) ?? fields?.customfield_10312
+
+  if (!rawComponents) return []
+
+  const list = Array.isArray(rawComponents) ? rawComponents : [rawComponents]
+  const seen = new Set<string>()
+
+  return list
+    .map(normalize)
+    .filter(Boolean)
+    .filter((comp) => {
+      const key = `${comp?.id || ''}:${comp?.name || ''}`.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }) as Array<{ id?: string; name: string }>
+}
+
 // Convert Jira ADF to minimal HTML preserving basic formatting
 export function adfToHtml(
   adf: any,
@@ -1288,6 +1332,7 @@ export async function getIssues(
         'duedate',
         'labels',
         'components',
+        'customfield_10312',
         'fixVersions',
         'customfield_10020',
         'sprint',
@@ -1351,7 +1396,7 @@ export async function getIssues(
             updated: issue.fields.updated,
             duedate: issue.fields.duedate,
             labels: issue.fields.labels || [],
-            components: issue.fields.components || [],
+            components: extractComponentsFromFields(issue.fields),
             sprint,
             fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
               id: String(v.id),
@@ -1409,6 +1454,95 @@ export async function getIssues(
     return allIssues
   } catch (error) {
     console.error('Error fetching issues:', error)
+    return []
+  }
+}
+
+export async function searchIssuesByText(
+  projectKey: string,
+  query: string,
+  maxResults = 25
+): Promise<JiraIssue[]> {
+  const term = (query || '').trim()
+  if (!term) return []
+
+  const escapeJqlValue = (value: string) =>
+    value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+
+  try {
+    const safeTerm = escapeJqlValue(term)
+    const scope = projectKey ? `project = ${projectKey} AND ` : ''
+    const jql = `${scope}(issuekey ~ "${safeTerm}" OR summary ~ "${safeTerm}" OR description ~ "${safeTerm}") ORDER BY updated DESC`
+    const minimalFields = [
+      'summary',
+      'status',
+      'description',
+      'priority',
+      'assignee',
+      'reporter',
+      'issuetype',
+      'created',
+      'updated',
+      'duedate',
+      'labels',
+      'components',
+      'customfield_10312',
+      'fixVersions',
+      'customfield_10020',
+      'sprint',
+      'sprints',
+      'closedSprints'
+    ].join(',')
+
+    const url = `/search/jql?jql=${encodeURIComponent(jql)}&maxResults=${Math.max(1, Math.min(50, maxResults))}&fields=${encodeURIComponent(minimalFields)}`
+    const data = await jiraFetch(url)
+    const issues = (data as any)?.issues
+    if (!Array.isArray(issues)) return []
+
+    return issues.map((issue: any) => {
+      const fields = issue?.fields || {}
+      const sprint = extractSprintFromFields(fields)
+      const fallbackDate = new Date().toISOString()
+      return {
+        id: String(issue.id || issue.key || ''),
+        key: String(issue.key || ''),
+        summary: String(fields.summary || ''),
+        status: fields.status || {
+          name: 'Unknown',
+          statusCategory: { key: 'unknown', colorName: 'medium-gray' }
+        },
+        description: extractTextFromADF(fields.description),
+        descriptionHtml: adfToHtml(
+          fields.description,
+          fields.attachment,
+          issue.key
+        ),
+        priority: fields.priority || ({ name: 'Unknown', iconUrl: '' } as any),
+        assignee: fields.assignee || undefined,
+        reporter:
+          fields.reporter ||
+          ({
+            displayName: 'Unknown',
+            avatarUrls: { '24x24': '' }
+          } as any),
+        issuetype:
+          fields.issuetype || ({ name: 'Unknown', iconUrl: '' } as any),
+        created: fields.created || fallbackDate,
+        updated: fields.updated || fields.created || fallbackDate,
+        duedate: fields.duedate,
+        labels: fields.labels || [],
+        components: extractComponentsFromFields(fields),
+        sprint,
+        fixVersions: (fields.fixVersions || []).map((v: any) => ({
+          id: String(v.id),
+          name: v.name,
+          released: Boolean(v.released),
+          archived: Boolean(v.archived)
+        }))
+      } as JiraIssue
+    })
+  } catch (error) {
+    console.error('Error running global issue search:', error)
     return []
   }
 }
@@ -1487,6 +1621,30 @@ export async function updateIssueFixVersions(
   }
 }
 
+export async function updateIssueComponents(
+  issueKey: string,
+  componentId: string | null
+): Promise<boolean> {
+  try {
+    const payload =
+      componentId && String(componentId).trim()
+        ? {
+            customfield_10312: { id: String(componentId).trim() },
+            components: [{ id: String(componentId).trim() }]
+          }
+        : { customfield_10312: null, components: [] }
+
+    await jiraFetch(`/issue/${issueKey}`, {
+      method: 'PUT',
+      body: JSON.stringify({ fields: payload })
+    })
+    return true
+  } catch (error) {
+    console.error('Error updating issue components:', error)
+    return false
+  }
+}
+
 export async function updateIssueSprint(
   issueKey: string,
   sprintId: string | null | undefined
@@ -1558,7 +1716,7 @@ export async function getIssue(issueKey: string): Promise<JiraIssue | null> {
       updated: issue.fields.updated,
       duedate: issue.fields.duedate || undefined,
       labels: issue.fields.labels || [],
-      components: issue.fields.components || [],
+      components: extractComponentsFromFields(issue.fields),
       sprint: extractSprintFromFields(issue.fields),
       fixVersions: (issue.fields.fixVersions || []).map((v: any) => ({
         id: String(v.id),
@@ -1692,6 +1850,7 @@ export async function createIssue(params: {
     // Include component as a required field during creation
     if (componentId && String(componentId).trim()) {
       fields.customfield_10312 = { id: String(componentId).trim() }
+      fields.components = [{ id: String(componentId).trim() }]
     }
 
     // Ensure issue type is set. If not provided, pick the first available for the project.

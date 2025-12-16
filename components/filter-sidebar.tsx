@@ -32,6 +32,7 @@ interface FilterSidebarProps {
   issues: JiraIssue[]
   isOpen: boolean
   onToggle: () => void
+  projectComponents?: Array<{ id: string; name: string }>
 }
 
 export function FilterSidebar({
@@ -39,7 +40,8 @@ export function FilterSidebar({
   onFiltersChange,
   issues,
   isOpen,
-  onToggle
+  onToggle,
+  projectComponents
 }: FilterSidebarProps) {
   const [showAllChips, setShowAllChips] = useState(false)
   const [openSections, setOpenSections] = useState(() => {
@@ -195,6 +197,10 @@ export function FilterSidebar({
   const uniqueComponents = [
     ...new Set(issues.flatMap((issue) => issue.components.map((c) => c.name)))
   ]
+  const componentOptions =
+    projectComponents && projectComponents.length > 0
+      ? projectComponents
+      : uniqueComponents.map((name) => ({ id: name, name }))
 
   const handleFilterChange = (key: keyof FilterOptions, value: any) => {
     onFiltersChange({ ...filters, [key]: value })
@@ -1015,7 +1021,7 @@ export function FilterSidebar({
           )}
 
           {/* Components Filter */}
-          {uniqueComponents.length > 0 && (
+          {componentOptions.length > 0 && (
             <Collapsible
               open={openSections.components}
               onOpenChange={() => toggleSection('components')}
@@ -1031,24 +1037,29 @@ export function FilterSidebar({
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className='mt-2 space-y-2'>
-                {uniqueComponents.map((component) => (
-                  <div key={component} className='flex items-center space-x-2'>
+                {componentOptions.map((component) => (
+                  <div
+                    key={component.id || component.name}
+                    className='flex items-center space-x-2'
+                  >
                     <Checkbox
-                      id={`component-${component}`}
-                      checked={filters.components?.includes(component) || false}
+                      id={`component-${component.id || component.name}`}
+                      checked={
+                        filters.components?.includes(component.name) || false
+                      }
                       onCheckedChange={(checked) =>
                         handleMultiSelectChange(
                           'components',
-                          component,
+                          component.name,
                           checked as boolean
                         )
                       }
                     />
                     <Label
-                      htmlFor={`component-${component}`}
+                      htmlFor={`component-${component.id || component.name}`}
                       className='text-sm'
                     >
-                      {component}
+                      {component.name}
                     </Label>
                   </div>
                 ))}

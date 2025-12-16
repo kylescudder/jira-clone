@@ -438,6 +438,42 @@ export async function updateIssuePriority(
   }
 }
 
+export async function updateIssueComponents(
+  issueKey: string,
+  componentId: string | null
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/issues/${issueKey}/components`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ componentId })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(
+        `Component update failed: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      return false
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`${CACHE_PREFIX}issue:${issueKey}`)
+        localStorage.removeItem(`${CACHE_PREFIX}issueDetails:${issueKey}`)
+      }
+    } catch {
+      // ignore cache cleanup errors
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error updating components:', error)
+    return false
+  }
+}
+
 export async function updateIssueSprint(
   issueKey: string,
   sprintId: string | null | undefined
@@ -563,6 +599,35 @@ export async function fetchIssues(
     } catch {
       return []
     }
+  }
+}
+
+export async function searchIssuesGlobally(
+  projectKey: string,
+  query: string
+): Promise<JiraIssue[]> {
+  const trimmed = (query || '').trim()
+  if (!trimmed) return []
+
+  const cacheKey = `globalSearch:${projectKey || 'all'}:${trimmed.toLowerCase()}`
+  const cached = getCachedData<JiraIssue[]>(cacheKey)
+  if (cached) return cached
+
+  try {
+    const params = new URLSearchParams()
+    if (projectKey) params.set('project', projectKey)
+    params.set('query', trimmed)
+
+    const response = await fetch(`/api/issues/search?${params.toString()}`)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    const data = (await response.json()) as JiraIssue[]
+    setCachedData(cacheKey, data, 5 * 60 * 1000)
+    return data
+  } catch (error) {
+    console.error('Error performing global issue search:', error)
+    return getCachedData<JiraIssue[]>(cacheKey) || []
   }
 }
 

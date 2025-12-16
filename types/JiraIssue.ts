@@ -36,6 +36,7 @@ export interface JiraIssue {
   duedate?: string
   labels: string[]
   components: Array<{
+    id?: string
     name: string
   }>
   sprint?: {
