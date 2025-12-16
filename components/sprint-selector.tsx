@@ -390,18 +390,6 @@ export function SprintSelector({
           ))}
         </div>
       )}
-
-      {/* Summary info */}
-      {sprints.length > 0 && (
-        <div className='text-muted-foreground text-xs'>
-          {activeFutureSprints} active/future
-          {closedSprints > 0 && (
-            <span className={cn(showClosedSprints ? 'text-foreground' : '')}>
-              , {closedSprints} closed {!showClosedSprints && '(hidden)'}
-            </span>
-          )}
-        </div>
-      )}
     </div>
   )
 }

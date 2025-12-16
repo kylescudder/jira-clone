@@ -786,24 +786,28 @@ function HomePageContent() {
 
         {/* Controls Row */}
         <Card className='bg-muted/30'>
-          <CardContent className='p-4'>
-            <div className='flex flex-wrap items-center gap-6'>
+          <CardContent className='p-3'>
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[1.2fr_1.2fr_0.9fr]'>
               {/* Project Selection */}
               {projects.length > 0 && (
-                <div className='flex items-center gap-2'>
-                  <Label
-                    htmlFor='project-select'
-                    className='text-sm font-medium whitespace-nowrap'
-                  >
-                    1. Project:
-                  </Label>
-                  <div className='min-w-0 max-w-full'>
+                <div className='flex h-full flex-col gap-2 rounded-md border border-border/60 bg-background/40 p-3 shadow-sm'>
+                  <div className='flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                    <span className='flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold'>
+                      1
+                    </span>
+                    <span className='text-sm text-foreground/80'>Project</span>
+                  </div>
+                  <div>
+                    <Label htmlFor='project-select' className='sr-only'>
+                      Project
+                    </Label>
                     <select
                       id='project-select'
-                      className='border-input bg-background text-foreground focus:ring-ring w-full sm:w-auto sm:max-w-[50vw] md:max-w-[320px] lg:max-w-[420px] truncate rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-hidden'
+                      className='border-input bg-background text-foreground focus:ring-ring w-full rounded-md border px-3 py-[7px] text-sm focus:ring-2 focus:outline-hidden'
                       value={selectedProject}
                       onChange={(e) => handleProjectChange(e.target.value)}
                       disabled={loading}
+                      aria-label='Project'
                     >
                       <option value=''>Select a project</option>
                       {projects.map((project) => (
@@ -818,39 +822,73 @@ function HomePageContent() {
 
               {/* Sprint Selection */}
               {selectedProject && (
-                <div className='flex min-w-0 flex-1 items-center gap-2'>
-                  <Label className='text-sm font-medium whitespace-nowrap'>
-                    2. Sprint(s):
-                  </Label>
-                  <SprintSelector
-                    sprints={sprints}
-                    selectedSprints={selectedSprints}
-                    onSprintChange={handleSprintChange}
-                    disabled={loading}
-                  />
+                <div className='flex h-full flex-col gap-2 rounded-md border border-border/60 bg-background/40 p-3 shadow-sm'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                      <span className='flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold'>
+                        2
+                      </span>
+                      <span className='text-sm text-foreground/80'>
+                        Sprint(s)
+                      </span>
+                    </div>
+                    {sprints.length > 0 && (
+                      <div className='flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground'>
+                        <Badge
+                          variant='secondary'
+                          size='compact'
+                          className='bg-[hsl(var(--chart-5))/12] text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))/30]'
+                        >
+                          {activeFutureSprints} active/future
+                        </Badge>
+                        {closedSprints > 0 && (
+                          <Badge variant='outline' size='compact'>
+                            {closedSprints} closed
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className='w-full'>
+                    <Label className='sr-only'>Sprint selection</Label>
+                    <SprintSelector
+                      sprints={sprints}
+                      selectedSprints={selectedSprints}
+                      onSprintChange={handleSprintChange}
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Load Button */}
               {selectedProject && (
-                <Button
-                  onClick={handleLoadIssues}
-                  size='default'
-                  disabled={loading || !canLoadIssues}
-                  className='whitespace-nowrap w-full sm:w-[150px] justify-center'
-                >
-                  {loading ? (
-                    <span className='inline-flex items-center gap-2 cursor-pointer'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                      Loading...
+                <div className='flex h-full flex-col gap-2 rounded-md border border-border/60 bg-background/40 p-3 shadow-sm'>
+                  <div className='flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                    <span className='flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold'>
+                      3
                     </span>
-                  ) : (
-                    <span className='inline-flex items-center gap-2 cursor-pointer'>
-                      <RefreshCw className='h-4 w-4' />
-                      3. Load Issues
-                    </span>
-                  )}
-                </Button>
+                    <span className='text-sm text-foreground/80'>Load</span>
+                  </div>
+                  <Button
+                    onClick={handleLoadIssues}
+                    size='default'
+                    disabled={loading || !canLoadIssues}
+                    className='h-10 w-full justify-center whitespace-nowrap'
+                  >
+                    {loading ? (
+                      <span className='inline-flex items-center gap-2 cursor-pointer'>
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                        Loading...
+                      </span>
+                    ) : (
+                      <span className='inline-flex items-center gap-2 cursor-pointer'>
+                        <RefreshCw className='h-4 w-4' />
+                        Load Issues
+                      </span>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </CardContent>
