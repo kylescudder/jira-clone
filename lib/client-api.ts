@@ -806,11 +806,12 @@ export async function fetchProjectComponents(
   if (!projectKey?.trim()) return []
   const cacheKey = `components:${projectKey}`
   try {
-    return await fetchWithCache<Array<{ id: string; name: string }>>({
+    const comps = await fetchWithCache<Array<{ id: string; name: string }>>({
       url: `/api/projects/${projectKey}/components`,
       cacheKey,
       ttlMs: 60 * 60 * 1000
     })
+    return Array.isArray(comps) ? comps.filter(Boolean) : []
   } catch (error) {
     console.error('Error fetching project components:', error)
     return getCachedData<Array<{ id: string; name: string }>>(cacheKey) || []

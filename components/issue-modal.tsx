@@ -935,7 +935,7 @@ function IssueEditContent({
           ) || []
         if (cached.length && !cancelled) setProjectComponents(cached)
         const comps = await fetchProjectComponents(projectKey)
-        if (!cancelled) setProjectComponents(comps)
+        if (!cancelled) setProjectComponents(comps || [])
       } catch {
         // ignore component load errors
       }

@@ -100,7 +100,7 @@ export function KanbanBoard({
     const load = async () => {
       try {
         const comps = await fetchProjectComponents(projectKey)
-        if (!cancelled) setProjectComponents(comps)
+        if (!cancelled) setProjectComponents(comps || [])
       } catch (e) {
         // ignore component load errors; leave existing options in place
       }
