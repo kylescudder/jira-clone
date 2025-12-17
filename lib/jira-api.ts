@@ -1628,11 +1628,8 @@ export async function updateIssueComponents(
   try {
     const payload =
       componentId && String(componentId).trim()
-        ? {
-            customfield_10312: { id: String(componentId).trim() },
-            components: [{ id: String(componentId).trim() }]
-          }
-        : { customfield_10312: null, components: [] }
+        ? { customfield_10312: { id: String(componentId).trim() } }
+        : { customfield_10312: null }
 
     await jiraFetch(`/issue/${issueKey}`, {
       method: 'PUT',
@@ -1850,7 +1847,6 @@ export async function createIssue(params: {
     // Include component as a required field during creation
     if (componentId && String(componentId).trim()) {
       fields.customfield_10312 = { id: String(componentId).trim() }
-      fields.components = [{ id: String(componentId).trim() }]
     }
 
     // Ensure issue type is set. If not provided, pick the first available for the project.
