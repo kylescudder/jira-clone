@@ -965,8 +965,10 @@ export async function updateIssuePriority(
 
 export async function getIssueDetails(issueKey: string) {
   try {
-    // Attachments (fetch via fields)
-    const issueData = await jiraFetch(`/issue/${issueKey}?fields=attachment`)
+    // Attachments + issue links (fetch via fields)
+    const issueData = await jiraFetch(
+      `/issue/${issueKey}?fields=attachment,issuelinks`
+    )
     const attachments = (issueData?.fields?.attachment || []).map(
       (att: any) => {
         const mime: string | undefined = att.mimeType
@@ -983,6 +985,50 @@ export async function getIssueDetails(issueKey: string) {
         }
       }
     )
+
+    const issueLinks = (issueData?.fields?.issuelinks || [])
+      .map((link: any) => {
+        const outward = link?.outwardIssue
+        const inward = link?.inwardIssue
+        const linked = outward || inward
+        if (!linked || !linked.key) return null
+        const type = link?.type || {}
+        const relationship = outward ? type.outward : type.inward
+        const fields = linked.fields || {}
+        return {
+          id: String(link.id || `${linked.key}-${type.name || ''}`),
+          type: {
+            name: String(type.name || 'Relates'),
+            inward: String(type.inward || 'is related to'),
+            outward: String(type.outward || 'relates to')
+          },
+          direction: outward ? 'outward' : 'inward',
+          relationship: String(relationship || type.name || 'Relates'),
+          issue: {
+            key: String(linked.key),
+            summary: String(fields.summary || linked.key),
+            status: fields.status
+              ? {
+                  name: String(fields.status?.name || 'Unknown'),
+                  statusCategory: fields.status?.statusCategory
+                }
+              : undefined,
+            issuetype: fields.issuetype
+              ? {
+                  name: fields.issuetype?.name,
+                  iconUrl: fields.issuetype?.iconUrl
+                }
+              : undefined,
+            priority: fields.priority
+              ? {
+                  name: fields.priority?.name,
+                  iconUrl: fields.priority?.iconUrl
+                }
+              : undefined
+          }
+        }
+      })
+      .filter(Boolean)
 
     // Comments (paginate up to 100 for now)
     const commentsData = await jiraFetch(
@@ -1025,10 +1071,10 @@ export async function getIssueDetails(issueKey: string) {
       }))
     }))
 
-    return { attachments, comments, changelog }
+    return { attachments, comments, changelog, issueLinks }
   } catch (error) {
     console.error('Error fetching issue details:', error)
-    return { attachments: [], comments: [], changelog: [] }
+    return { attachments: [], comments: [], changelog: [], issueLinks: [] }
   }
 }
 

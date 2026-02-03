@@ -646,7 +646,8 @@ export async function fetchIssueDetails(issueKey: string) {
       getCachedData(`issueDetails:${issueKey}`) || {
         attachments: [],
         comments: [],
-        changelog: []
+        changelog: [],
+        issueLinks: []
       }
     )
   }

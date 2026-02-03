@@ -1466,6 +1466,12 @@ function IssueEditContent({
 
   const jiraBase = process.env.JIRA_BASE_URL || ''
 
+  const relatedLinks = (details?.issueLinks || []).slice().sort((a, b) => {
+    const ak = a.issue.key.toLowerCase()
+    const bk = b.issue.key.toLowerCase()
+    return ak.localeCompare(bk)
+  })
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className='max-h-[90vh] max-w-[98vw] w-[98vw]! sm:w-auto sm:max-w-[110rem] p-0 rounded-2xl overflow-hidden'>
@@ -1748,30 +1754,137 @@ function IssueEditContent({
                 </Card>
               )}
 
-              {/* Components */}
-              {displayIssue.components.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className='flex items-center gap-2 text-lg'>
-                      <Component className='h-5 w-5' />
-                      Components
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className='flex flex-wrap gap-2'>
-                      {displayIssue.components.map((component) => (
-                        <Badge
-                          key={component.name}
-                          variant='outline'
-                          className='text-sm'
-                        >
-                          {component.name}
-                        </Badge>
-                      ))}
+              {/* Related Issues */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className='flex items-center gap-2 text-lg'>
+                    <LinkIcon className='h-5 w-5' />
+                    Related Issues
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  {detailsLoading ? (
+                    <div className='text-muted-foreground text-sm flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' /> Loading
+                      related issues…
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  ) : relatedLinks.length > 0 ? (
+                    <div className='space-y-2'>
+                      {relatedLinks.map((link) => {
+                        const statusName = link.issue.status?.name || 'Unknown'
+                        const statusLabel = normalizeStatusName(statusName)
+                        const relationship = link.relationship || link.type.name
+                        const href = jiraBase?.trim()
+                          ? `${jiraBase.replace(/\/$/, '')}/browse/${link.issue.key}`
+                          : ''
+                        return (
+                          <div
+                            key={`${link.id}-${link.issue.key}`}
+                            className='flex items-start justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2'
+                          >
+                            <div className='min-w-0 space-y-1'>
+                              <div className='flex flex-wrap items-center gap-2 text-sm'>
+                                <Badge variant='outline' className='text-xs'>
+                                  {relationship}
+                                </Badge>
+                                {href ? (
+                                  <a
+                                    href={href}
+                                    target='_blank'
+                                    rel='noreferrer'
+                                    className='font-medium hover:underline'
+                                  >
+                                    {link.issue.key}
+                                  </a>
+                                ) : (
+                                  <span className='font-medium'>
+                                    {link.issue.key}
+                                  </span>
+                                )}
+                                <span className='text-muted-foreground truncate'>
+                                  {decodeHtmlEntities(link.issue.summary)}
+                                </span>
+                              </div>
+                            </div>
+                            <Badge
+                              variant='secondary'
+                              className={`text-xs ${getStatusColor(statusLabel)}`}
+                            >
+                              {statusLabel}
+                            </Badge>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className='text-muted-foreground text-sm'>
+                      No related issues yet.
+                    </div>
+                  )}
+
+                  <div className='border-t border-border pt-4 space-y-3'>
+                    <div className='flex items-center gap-2 text-sm font-medium'>
+                      <LinkIcon className='h-4 w-4' />
+                      <span>Link an issue</span>
+                    </div>
+                    {linkError && (
+                      <Alert variant='destructive'>
+                        <AlertDescription>{linkError}</AlertDescription>
+                      </Alert>
+                    )}
+                    <LinkIssuePicker
+                      projectKey={projectKey}
+                      linkIssueKey={linkIssueKey}
+                      onLinkIssueKeyChange={setLinkIssueKey}
+                      linkType={linkType}
+                      onLinkTypeChange={setLinkType}
+                      disabled={linkLoading}
+                      label=''
+                      layout='stack'
+                    />
+                    <div className='flex justify-end'>
+                      <Button
+                        variant='default'
+                        disabled={!linkIssueKey.trim() || linkLoading || !issue}
+                        onClick={async () => {
+                          if (!issue) return
+                          setLinkError(null)
+                          setLinkLoading(true)
+                          const ok = await linkIssueClient({
+                            issueKey: issue.key,
+                            toIssueKey: linkIssueKey.trim(),
+                            linkType
+                          })
+                          setLinkLoading(false)
+                          if (!ok) {
+                            setLinkError(
+                              'Failed to create link. Please try again.'
+                            )
+                            return
+                          }
+                          setLinkIssueKey('')
+                          setLinkType('Relates')
+                          try {
+                            await loadDetails()
+                          } catch (_) {
+                            // ignore refresh error
+                          }
+                          onUpdate()
+                        }}
+                      >
+                        {linkLoading ? (
+                          <span className='inline-flex items-center gap-2'>
+                            <Loader2 className='h-4 w-4 animate-spin' />{' '}
+                            Linking...
+                          </span>
+                        ) : (
+                          'Link Issue'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Releases & Links (collapsible) */}
               <Card>
@@ -1814,70 +1927,6 @@ function IssueEditContent({
                               showBadgesSummary
                             />
                           )}
-                        </div>
-
-                        {/* Link to Issue (post-creation) */}
-                        <div className='space-y-3'>
-                          <div className='flex items-center gap-2 text-sm font-medium'>
-                            <LinkIcon className='h-4 w-4' />
-                            <span>Link to Issue</span>
-                          </div>
-                          {linkError && (
-                            <Alert variant='destructive'>
-                              <AlertDescription>{linkError}</AlertDescription>
-                            </Alert>
-                          )}
-                          <LinkIssuePicker
-                            projectKey={projectKey}
-                            linkIssueKey={linkIssueKey}
-                            onLinkIssueKeyChange={setLinkIssueKey}
-                            linkType={linkType}
-                            onLinkTypeChange={setLinkType}
-                            disabled={linkLoading}
-                          />
-                          <div className='flex justify-end'>
-                            <Button
-                              variant='default'
-                              disabled={
-                                !linkIssueKey.trim() || linkLoading || !issue
-                              }
-                              onClick={async () => {
-                                if (!issue) return
-                                setLinkError(null)
-                                setLinkLoading(true)
-                                const ok = await linkIssueClient({
-                                  issueKey: issue.key,
-                                  toIssueKey: linkIssueKey.trim(),
-                                  linkType
-                                })
-                                setLinkLoading(false)
-                                if (!ok) {
-                                  setLinkError(
-                                    'Failed to create link. Please try again.'
-                                  )
-                                  return
-                                }
-                                // reset
-                                setLinkIssueKey('')
-                                setLinkType('Relates')
-                                try {
-                                  await loadDetails()
-                                } catch (_) {
-                                  // ignore refresh error
-                                }
-                                onUpdate()
-                              }}
-                            >
-                              {linkLoading ? (
-                                <span className='inline-flex items-center gap-2'>
-                                  <Loader2 className='h-4 w-4 animate-spin' />{' '}
-                                  Linking...
-                                </span>
-                              ) : (
-                                'Link Issue'
-                              )}
-                            </Button>
-                          </div>
                         </div>
                       </CardContent>
                     </CollapsibleContent>
