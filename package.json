@@ -67,7 +67,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
-    "@tailwindcss/postcss": "4.2.1",
+    "@tailwindcss/postcss": "4.3.5",
     "@types/node": "25",
     "@types/react": "19",
     "@types/react-dom": "19",
@@ -75,7 +75,7 @@
     "postcss": "8.5",
     "prettier": "3.8.1",
     "prettier-plugin-tailwindcss": "0.7.2",
-    "tailwindcss": "4.2.1",
+    "tailwindcss": "4.3.5",
     "typescript": "5"
   }
 }
